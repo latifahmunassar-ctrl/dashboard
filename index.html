@@ -9,17 +9,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f172a;
-      --panel: #1e293b;
-      --panel-2: #273449;
-      --border: #334155;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --ok: #22c55e;
-      --warn: #f59e0b;
-      --err: #ef4444;
-      --shadow: 0 4px 24px rgba(0,0,0,.35);
+      --bg: #f8fafc;            /* page background — near-white */
+      --panel: #ffffff;          /* card surface */
+      --panel-2: #f1f5f9;        /* secondary surface (inputs, code) */
+      --border: #e2e8f0;         /* hairlines */
+      --text: #0f172a;           /* primary text — dark navy */
+      --muted: #64748b;          /* secondary text */
+      --accent: #0284c7;         /* primary action — slightly darker sky */
+      --ok: #16a34a;             /* darker greens/reds/ambers for contrast on white */
+      --warn: #d97706;
+      --err: #dc2626;
+      --shadow: 0 1px 3px rgba(15,23,42,.06), 0 4px 12px rgba(15,23,42,.04);
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: "Tajawal", system-ui, sans-serif; }
@@ -160,7 +160,7 @@
     }
     .conv-msg.customer .sender-pill { background: var(--panel-2); color: var(--muted); }
     .conv-msg.bot.ai .sender-pill { background: rgba(56,189,248,.18); color: var(--accent); }
-    .conv-msg.bot.admin .sender-pill { background: rgba(168,85,247,.18); color: #c084fc; }
+    .conv-msg.bot.admin .sender-pill { background: rgba(168,85,247,.18); color: #7e22ce; }
     .conv-msg.bot.staff .sender-pill { background: rgba(34,197,94,.18); color: var(--ok); }
     .conv-footer {
       display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
@@ -170,7 +170,7 @@
       padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; resize: vertical;
     }
     .conv-footer button {
-      background: var(--accent); color: #0f172a; border: none; padding: 0 18px; border-radius: 8px;
+      background: var(--accent); color: white; border: none; padding: 0 18px; border-radius: 8px;
       font-weight: 800; cursor: pointer; font-family: inherit;
     }
     .conv-footer button:disabled { opacity: 0.6; cursor: wait; }
@@ -212,7 +212,7 @@
       padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; min-width: 140px;
     }
     .form-row button {
-      background: var(--accent); color: #0f172a; border: none; padding: 8px 14px;
+      background: var(--accent); color: white; border: none; padding: 8px 14px;
       border-radius: 8px; font-weight: 800; cursor: pointer; font-family: inherit; font-size: 13px;
     }
     .form-row button.danger { background: var(--err); color: white; }
@@ -232,7 +232,7 @@
       background: rgba(56,189,248,.18); color: var(--accent);
     }
     .pill.urgent { background: rgba(239,68,68,.22); color: var(--err); }
-    .pill.tag-vip, .pill.tag-corporate, .pill.tag-partnership { background: rgba(168,85,247,.18); color: #c084fc; }
+    .pill.tag-vip, .pill.tag-corporate, .pill.tag-partnership { background: rgba(168,85,247,.18); color: #7e22ce; }
     .pill.tag-repeat { background: rgba(56,189,248,.18); color: var(--accent); }
     .pill.tag-new { background: rgba(148,163,184,.18); color: var(--muted); }
     .pill.tag-complaint { background: rgba(239,68,68,.18); color: var(--err); }
@@ -258,12 +258,12 @@
       font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
     }
     .filter-btn:hover { background: var(--border); }
-    .filter-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); font-weight: 700; }
+    .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); font-weight: 700; }
     .filter-btn .cnt {
-      background: rgba(0,0,0,.15); padding: 1px 7px; border-radius: 999px;
+      background: rgba(15,23,42,.08); padding: 1px 7px; border-radius: 999px;
       font-size: 11px; font-weight: 700; min-width: 18px; text-align: center;
     }
-    .filter-btn.active .cnt { background: rgba(15,23,42,.25); }
+    .filter-btn.active .cnt { background: rgba(255,255,255,.25); }
     .filter-urgent {
       background: var(--panel-2); border: 1px solid rgba(239,68,68,.4); color: var(--err);
       padding: 10px 16px; border-radius: 999px; font-family: inherit;
