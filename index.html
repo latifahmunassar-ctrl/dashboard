@@ -123,6 +123,60 @@
     }
     .auth-error { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 1em; }
 
+    /* Conversation modal */
+    .conv-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      width: 100%; max-width: 680px; max-height: 88vh; display: flex; flex-direction: column;
+      box-shadow: var(--shadow);
+    }
+    .conv-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .conv-head h2 { margin: 0; font-size: 17px; }
+    .conv-body {
+      flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column;
+      gap: 10px; background: var(--bg);
+    }
+    .conv-msg { display: flex; flex-direction: column; max-width: 80%; }
+    .conv-msg.customer { align-self: flex-start; }
+    .conv-msg.bot { align-self: flex-end; }
+    .conv-msg .bubble {
+      padding: 8px 12px; border-radius: 12px; word-break: break-word; white-space: pre-wrap;
+      font-size: 14px;
+    }
+    .conv-msg.customer .bubble { background: var(--panel-2); border: 1px solid var(--border); }
+    .conv-msg.bot.ai .bubble { background: rgba(56,189,248,.18); border: 1px solid rgba(56,189,248,.35); }
+    .conv-msg.bot.admin .bubble { background: rgba(168,85,247,.18); border: 1px solid rgba(168,85,247,.4); }
+    .conv-msg.bot.staff .bubble { background: rgba(34,197,94,.16); border: 1px solid rgba(34,197,94,.35); }
+    .conv-msg .meta {
+      font-size: 11px; color: var(--muted); margin-top: 3px; direction: ltr;
+    }
+    .conv-msg.customer .meta { text-align: right; }
+    .conv-msg.bot .meta { text-align: left; }
+    .conv-msg .sender-pill {
+      display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px;
+      border-radius: 999px; margin-bottom: 4px;
+    }
+    .conv-msg.customer .sender-pill { background: var(--panel-2); color: var(--muted); }
+    .conv-msg.bot.ai .sender-pill { background: rgba(56,189,248,.18); color: var(--accent); }
+    .conv-msg.bot.admin .sender-pill { background: rgba(168,85,247,.18); color: #c084fc; }
+    .conv-msg.bot.staff .sender-pill { background: rgba(34,197,94,.18); color: var(--ok); }
+    .conv-footer {
+      display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
+    }
+    .conv-footer textarea {
+      flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; resize: vertical;
+    }
+    .conv-footer button {
+      background: var(--accent); color: #0f172a; border: none; padding: 0 18px; border-radius: 8px;
+      font-weight: 800; cursor: pointer; font-family: inherit;
+    }
+    .conv-footer button:disabled { opacity: 0.6; cursor: wait; }
+    .conv-clickable { cursor: pointer; }
+    .conv-clickable:hover { background: var(--panel-2); }
+
     .ai-toggle-card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
       padding: 22px 24px; display: flex; align-items: center; justify-content: space-between;
@@ -288,6 +342,19 @@
     </section>
 
     <section>
+      <h3>الفلاتر</h3>
+      <button class="filter-urgent" id="filter-urgent" data-active="false">
+        🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
+      </button>
+      <div class="filter-bar" id="filter-customer-bar">
+        <span class="filter-label">العميل</span>
+      </div>
+      <div class="filter-bar" id="filter-case-bar">
+        <span class="filter-label">الحالة</span>
+      </div>
+    </section>
+
+    <section>
       <h3>المحادثات النشطة (24h) <span class="badge" id="c-badge">0</span></h3>
       <div class="panel-list" id="conversations-list">
         <div class="empty">جاري التحميل…</div>
@@ -296,26 +363,7 @@
 
     <section>
       <h3>proposals تنتظر ردك <span class="badge" id="p-badge">0</span></h3>
-
-      <button class="filter-urgent" id="filter-urgent" data-active="false">
-        🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
-      </button>
-
-      <div class="filter-bar" id="filter-customer-bar">
-        <span class="filter-label">العميل</span>
-      </div>
-      <div class="filter-bar" id="filter-case-bar">
-        <span class="filter-label">الحالة</span>
-      </div>
-
       <div class="panel-list" id="proposals-list">
-        <div class="empty">جاري التحميل…</div>
-      </div>
-    </section>
-
-    <section>
-      <h3>آخر 50 رسالة (24h)</h3>
-      <div class="panel-list" id="audit-list">
         <div class="empty">جاري التحميل…</div>
       </div>
     </section>
@@ -349,6 +397,23 @@
     <footer>
       ALEZZ Tourism System · لوحة تحكم داخلية · يحدّث تلقائياً كل 30 ثانية
     </footer>
+  </div>
+
+  <div class="auth-overlay" id="conv-overlay" style="display:none;">
+    <div class="conv-card">
+      <div class="conv-head">
+        <div>
+          <h2 id="conv-title">المحادثة</h2>
+          <p id="conv-sub" style="margin:4px 0 0; color:var(--muted); font-size:13px;">—</p>
+        </div>
+        <button class="refresh-btn" id="conv-close">✕</button>
+      </div>
+      <div class="conv-body" id="conv-body">جاري التحميل…</div>
+      <div class="conv-footer">
+        <textarea id="conv-input" placeholder="اكتب الرد للعميل…" rows="2"></textarea>
+        <button id="conv-send">إرسال</button>
+      </div>
+    </div>
   </div>
 
   <div class="auth-overlay" id="auth-overlay" style="display:none;">
@@ -569,11 +634,28 @@
       }
     });
 
+    let conversationsCache = [];
+
+    function applyConversationsFilter() {
+      const arr = conversationsCache.filter(c => {
+        if (filterUrgent && c.priority !== "URGENT") return false;
+        if (filterCustomer && c.customer_type !== filterCustomer) return false;
+        if (filterCase && c.case_type !== filterCase) return false;
+        return true;
+      });
+      renderConversationRows(arr);
+    }
+
     function renderConversations(arr) {
+      conversationsCache = arr;
+      applyConversationsFilter();
+    }
+
+    function renderConversationRows(arr) {
       const list = $("conversations-list");
       $("c-badge").textContent = arr.length;
       if (!arr.length) {
-        list.innerHTML = '<div class="empty">ما في محادثات نشطة خلال 24 ساعة</div>';
+        list.innerHTML = '<div class="empty">ما في محادثات مطابقة</div>';
         return;
       }
       list.innerHTML = arr.map((c) => {
@@ -591,13 +673,32 @@
         const assignedBadge = c.assigned_staff_phone
           ? ` · 👤 ${escapeHtml(staffNameFor(c.assigned_staff_phone))}${c.assigned_by ? " (" + escapeHtml(c.assigned_by === "auto" ? "تلقائي" : "نقل") + ")" : ""}`
           : "";
+        // Classification tags (from latest proposal joined onto conversation)
+        const tags = [];
+        if (c.priority === "URGENT") tags.push(`<span class="pill urgent">URGENT 🚨</span>`);
+        if (c.customer_type) {
+          const cls2 =
+            c.customer_type === "VIP_CUSTOMER" ? "tag-vip" :
+            c.customer_type === "CORPORATE_BUSINESS" ? "tag-corporate" :
+            c.customer_type === "PARTNERSHIP" ? "tag-partnership" :
+            c.customer_type === "REPEAT_CUSTOMER" ? "tag-repeat" :
+            "tag-new";
+          tags.push(`<span class="pill ${cls2}">${escapeHtml(c.customer_type)}</span>`);
+        }
+        if (c.case_type) {
+          const cls3 = c.case_type === "COMPLAINT" ? "tag-complaint" :
+            c.case_type.startsWith("BOOKING") ? "tag-booking" : "tag-case";
+          tags.push(`<span class="pill ${cls3}">${escapeHtml(c.case_type)}</span>`);
+        }
+        const urgentRow = c.priority === "URGENT" ? " urgent-row" : "";
         return `
-          <div class="row" data-phone="${escapeHtml(c.phone)}">
-            <div class="label">
+          <div class="row${urgentRow}" data-phone="${escapeHtml(c.phone)}">
+            <div class="label conv-clickable" data-action="open-conv" data-phone="${escapeHtml(c.phone)}" data-name="${escapeHtml(c.profile_name || ph)}">
               <span class="dot ${dotCls}"></span>
               <div class="label-text">
                 <span class="primary">${escapeHtml(c.profile_name || ph)}</span>
                 <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}${destBadge}${assignedBadge}</span>
+                ${tags.length ? `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${tags.join("")}</div>` : ""}
               </div>
             </div>
             <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
@@ -611,13 +712,17 @@
       }).join("");
       // Bind toggle buttons
       list.querySelectorAll("[data-action=toggle]").forEach((b) => {
-        b.addEventListener("click", () => toggleConversation(b.dataset.phone, b.dataset.current, b));
+        b.addEventListener("click", (e) => { e.stopPropagation(); toggleConversation(b.dataset.phone, b.dataset.current, b); });
       });
       list.querySelectorAll("[data-action=reset]").forEach((b) => {
-        b.addEventListener("click", () => resetConversation(b.dataset.phone, b));
+        b.addEventListener("click", (e) => { e.stopPropagation(); resetConversation(b.dataset.phone, b); });
       });
       list.querySelectorAll("[data-action=transfer]").forEach((sel) => {
-        sel.addEventListener("change", (e) => transferConversation(sel.dataset.phone, e.target.value));
+        sel.addEventListener("change", (e) => { e.stopPropagation(); transferConversation(sel.dataset.phone, e.target.value); });
+        sel.addEventListener("click", (e) => e.stopPropagation());
+      });
+      list.querySelectorAll("[data-action=open-conv]").forEach((el) => {
+        el.addEventListener("click", () => openConversation(el.dataset.phone, el.dataset.name));
       });
     }
 
@@ -688,13 +793,103 @@
       }
     }
 
+    // ── Conversation modal (full chat view + admin send) ────────────────
+    let convPhone = "";
+
+    function senderClass(s) {
+      if (s === "customer") return "customer";
+      if (s === "admin") return "bot admin";
+      if (s === "staff") return "bot staff";
+      return "bot ai";
+    }
+    function senderPill(s) {
+      if (s === "customer") return "Customer";
+      if (s === "admin") return "Admin";
+      if (s === "staff") return "Staff";
+      return "AI";
+    }
+
+    async function openConversation(phone, name) {
+      convPhone = phone;
+      $("conv-title").textContent = name;
+      $("conv-sub").textContent = fmtPhone(phone);
+      $("conv-body").textContent = "جاري التحميل…";
+      $("conv-overlay").style.display = "grid";
+      $("conv-input").value = "";
+      await loadConversationHistory();
+    }
+    async function loadConversationHistory() {
+      if (!convPhone) return;
+      try {
+        const res = await fetch(BASE + "?admin_action=conversation_history", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: convPhone }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        renderConvBody(data.items || []);
+      } catch (e) {
+        $("conv-body").innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    function renderConvBody(items) {
+      const body = $("conv-body");
+      if (!items.length) {
+        body.innerHTML = '<div class="empty">ولا رسالة بعد</div>';
+        return;
+      }
+      body.innerHTML = items.map(m => `
+        <div class="conv-msg ${senderClass(m.sender)}">
+          <span class="sender-pill">${senderPill(m.sender)}</span>
+          <div class="bubble">${escapeHtml(m.body)}</div>
+          <div class="meta">${fmtTime(m.ts)}</div>
+        </div>`).join("");
+      // Scroll to bottom
+      body.scrollTop = body.scrollHeight;
+    }
+    $("conv-close").addEventListener("click", () => {
+      $("conv-overlay").style.display = "none";
+      convPhone = "";
+    });
+    $("conv-send").addEventListener("click", async () => {
+      const text = $("conv-input").value.trim();
+      if (!text || !convPhone) return;
+      const btn = $("conv-send"); btn.disabled = true;
+      try {
+        const res = await fetch(BASE + "?admin_action=send_admin_message", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: convPhone, body: text, sent_by: "admin" }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        $("conv-input").value = "";
+        // Twilio takes a second to register the outbound. Optimistically add
+        // it to the timeline immediately, then refresh after a short delay
+        // to pick up the real Twilio SID.
+        const body = $("conv-body");
+        const optimistic = document.createElement("div");
+        optimistic.className = "conv-msg bot admin";
+        optimistic.innerHTML = `<span class="sender-pill">Admin</span><div class="bubble">${escapeHtml(text)}</div><div class="meta">جاري الإرسال…</div>`;
+        body.appendChild(optimistic);
+        body.scrollTop = body.scrollHeight;
+        setTimeout(() => loadConversationHistory(), 4000);
+      } catch (e) {
+        alert("فشل: " + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     function applyProposalFilters() {
-      // Update count badges (totals per category — independent of other active filters)
-      const custCounts = { "": proposalsCache.length };
-      CUSTOMER_TYPES.forEach(t => { custCounts[t] = proposalsCache.filter(p => p.customer_type === t).length; });
-      const caseCounts = { "": proposalsCache.length };
-      CASE_TYPES.forEach(t => { caseCounts[t] = proposalsCache.filter(p => p.case_type === t).length; });
-      const urgentCnt = proposalsCache.filter(p => p.priority === "URGENT").length;
+      // Counts merge proposals AND conversations so each pill reflects how
+      // many real items would match across both panels.
+      const pool = [...proposalsCache, ...conversationsCache];
+      const custCounts = { "": pool.length };
+      CUSTOMER_TYPES.forEach(t => { custCounts[t] = pool.filter(p => p.customer_type === t).length; });
+      const caseCounts = { "": pool.length };
+      CASE_TYPES.forEach(t => { caseCounts[t] = pool.filter(p => p.case_type === t).length; });
+      const urgentCnt = pool.filter(p => p.priority === "URGENT").length;
       document.querySelectorAll('.filter-btn[data-kind="customer"]').forEach(b => {
         b.querySelector(".cnt").textContent = custCounts[b.dataset.value] ?? 0;
         b.classList.toggle("active", b.dataset.value === filterCustomer);
@@ -706,14 +901,15 @@
       $("urgent-cnt").textContent = urgentCnt;
       $("filter-urgent").classList.toggle("active", filterUrgent);
 
-      // Apply the filter conjunction and render
-      const filtered = proposalsCache.filter(p => {
+      // Re-render BOTH panels with the same filter set.
+      const filteredProposals = proposalsCache.filter(p => {
         if (filterUrgent && p.priority !== "URGENT") return false;
         if (filterCustomer && p.customer_type !== filterCustomer) return false;
         if (filterCase && p.case_type !== filterCase) return false;
         return true;
       });
-      renderProposalRows(filtered);
+      renderProposalRows(filteredProposals);
+      applyConversationsFilter();
     }
 
     function renderProposals(arr) {
@@ -810,7 +1006,6 @@
         renderRules(data.routing_rules || []);
         renderConversations(data.conversations || []);
         renderProposals(data.pending_proposals || []);
-        renderAudit(data.recent_audit || []);
         $("now").textContent = fmtTime(data.generated_at);
       } catch (e) {
         console.error(e);
