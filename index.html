@@ -190,6 +190,39 @@
       border-right: 3px solid var(--err);
     }
 
+    .filter-bar {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      padding: 8px 0; margin-bottom: 4px;
+    }
+    .filter-bar .filter-label {
+      color: var(--muted); font-size: 12px; font-weight: 700;
+      letter-spacing: .04em; text-transform: uppercase; min-width: 80px;
+    }
+    .filter-btn {
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 12px; border-radius: 999px; font-family: inherit;
+      font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .filter-btn:hover { background: var(--border); }
+    .filter-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); font-weight: 700; }
+    .filter-btn .cnt {
+      background: rgba(0,0,0,.15); padding: 1px 7px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; min-width: 18px; text-align: center;
+    }
+    .filter-btn.active .cnt { background: rgba(15,23,42,.25); }
+    .filter-urgent {
+      background: var(--panel-2); border: 1px solid rgba(239,68,68,.4); color: var(--err);
+      padding: 10px 16px; border-radius: 999px; font-family: inherit;
+      font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 14px;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .filter-urgent:hover { background: rgba(239,68,68,.10); }
+    .filter-urgent.active { background: var(--err); color: white; border-color: var(--err); }
+    .filter-urgent .cnt {
+      background: rgba(0,0,0,.18); padding: 1px 8px; border-radius: 999px; font-size: 12px;
+    }
+    .filter-urgent.active .cnt { background: rgba(255,255,255,.22); }
+
     footer { margin-top: 36px; color: var(--muted); font-size: 12px; text-align: center; }
   </style>
 </head>
@@ -263,6 +296,18 @@
 
     <section>
       <h3>proposals تنتظر ردك <span class="badge" id="p-badge">0</span></h3>
+
+      <button class="filter-urgent" id="filter-urgent" data-active="false">
+        🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
+      </button>
+
+      <div class="filter-bar" id="filter-customer-bar">
+        <span class="filter-label">العميل</span>
+      </div>
+      <div class="filter-bar" id="filter-case-bar">
+        <span class="filter-label">الحالة</span>
+      </div>
+
       <div class="panel-list" id="proposals-list">
         <div class="empty">جاري التحميل…</div>
       </div>
@@ -610,10 +655,76 @@
       $("m-errored").textContent = c.errored_today ?? 0;
       $("p-badge").textContent = c.pending_proposals_total ?? 0;
     }
+    // Filter state — proposals panel only
+    const CUSTOMER_TYPES = ["NEW_CUSTOMER", "REPEAT_CUSTOMER", "VIP_CUSTOMER", "CORPORATE_BUSINESS", "PARTNERSHIP"];
+    const CASE_TYPES = ["INQUIRY", "BOOKING_REQUEST", "COMPLAINT", "CANCELLATION", "MODIFICATION"];
+    let proposalsCache = [];
+    let filterCustomer = "";    // "" = all
+    let filterCase = "";        // "" = all
+    let filterUrgent = false;
+
+    function buildFilterBars() {
+      // Idempotent: build buttons once, then re-bind/re-style on each refresh.
+      const custBar = $("filter-customer-bar");
+      const caseBar = $("filter-case-bar");
+      if (custBar.querySelectorAll(".filter-btn").length === 0) {
+        const cBtns = [`<button class="filter-btn" data-kind="customer" data-value="">الكل <span class="cnt">0</span></button>`]
+          .concat(CUSTOMER_TYPES.map(t => `<button class="filter-btn" data-kind="customer" data-value="${t}">${t} <span class="cnt">0</span></button>`));
+        custBar.insertAdjacentHTML("beforeend", cBtns.join(""));
+        const sBtns = [`<button class="filter-btn" data-kind="case" data-value="">الكل <span class="cnt">0</span></button>`]
+          .concat(CASE_TYPES.map(t => `<button class="filter-btn" data-kind="case" data-value="${t}">${t} <span class="cnt">0</span></button>`));
+        caseBar.insertAdjacentHTML("beforeend", sBtns.join(""));
+        document.querySelectorAll(".filter-btn").forEach(b => {
+          b.addEventListener("click", () => {
+            if (b.dataset.kind === "customer") filterCustomer = b.dataset.value;
+            else filterCase = b.dataset.value;
+            applyProposalFilters();
+          });
+        });
+        $("filter-urgent").addEventListener("click", () => {
+          filterUrgent = !filterUrgent;
+          applyProposalFilters();
+        });
+      }
+    }
+
+    function applyProposalFilters() {
+      // Update count badges (totals per category — independent of other active filters)
+      const custCounts = { "": proposalsCache.length };
+      CUSTOMER_TYPES.forEach(t => { custCounts[t] = proposalsCache.filter(p => p.customer_type === t).length; });
+      const caseCounts = { "": proposalsCache.length };
+      CASE_TYPES.forEach(t => { caseCounts[t] = proposalsCache.filter(p => p.case_type === t).length; });
+      const urgentCnt = proposalsCache.filter(p => p.priority === "URGENT").length;
+      document.querySelectorAll('.filter-btn[data-kind="customer"]').forEach(b => {
+        b.querySelector(".cnt").textContent = custCounts[b.dataset.value] ?? 0;
+        b.classList.toggle("active", b.dataset.value === filterCustomer);
+      });
+      document.querySelectorAll('.filter-btn[data-kind="case"]').forEach(b => {
+        b.querySelector(".cnt").textContent = caseCounts[b.dataset.value] ?? 0;
+        b.classList.toggle("active", b.dataset.value === filterCase);
+      });
+      $("urgent-cnt").textContent = urgentCnt;
+      $("filter-urgent").classList.toggle("active", filterUrgent);
+
+      // Apply the filter conjunction and render
+      const filtered = proposalsCache.filter(p => {
+        if (filterUrgent && p.priority !== "URGENT") return false;
+        if (filterCustomer && p.customer_type !== filterCustomer) return false;
+        if (filterCase && p.case_type !== filterCase) return false;
+        return true;
+      });
+      renderProposalRows(filtered);
+    }
+
     function renderProposals(arr) {
+      proposalsCache = arr;
+      buildFilterBars();
+      applyProposalFilters();
+    }
+    function renderProposalRows(arr) {
       const list = $("proposals-list");
       if (!arr.length) {
-        list.innerHTML = '<div class="empty">✅ ولا proposal معلّق</div>';
+        list.innerHTML = '<div class="empty">✅ ولا proposal مطابق للفلتر الحالي</div>';
         return;
       }
       list.innerHTML = arr.map((p) => {
