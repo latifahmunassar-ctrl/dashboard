@@ -435,10 +435,28 @@
 
   <div class="auth-overlay" id="auth-overlay" style="display:none;">
     <div class="auth-card">
-      <h2>🔐 توكن الوصول</h2>
-      <p>الصق LEGACY_ANON_JWT من Supabase secrets للسماح بقراءة البيانات الإدارية. يُحفظ محلياً في المتصفح.</p>
-      <input id="auth-input" type="password" placeholder="eyJhbGc..." autocomplete="off" />
-      <button id="auth-submit">دخول</button>
+      <h2 id="auth-title">🔐 تسجيل دخول الموظفين</h2>
+      <p id="auth-help">أدخل اسم المستخدم وكلمة المرور.</p>
+
+      <div id="auth-staff-mode">
+        <input id="auth-username" type="text" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" />
+        <div style="height:8px"></div>
+        <input id="auth-password" type="password" placeholder="كلمة المرور" autocomplete="current-password" />
+        <button id="auth-staff-submit">دخول</button>
+        <div style="text-align:center; margin-top:10px;">
+          <a href="#" id="auth-toggle-admin" style="font-size:12px;">دخول الـ admin بالتوكن الرئيسي</a>
+        </div>
+      </div>
+
+      <div id="auth-admin-mode" style="display:none;">
+        <p style="margin:0 0 8px; font-size:12px; color:var(--muted);">الصق LEGACY_ANON_JWT</p>
+        <input id="auth-input" type="password" placeholder="eyJhbGc..." autocomplete="off" />
+        <button id="auth-submit">دخول</button>
+        <div style="text-align:center; margin-top:10px;">
+          <a href="#" id="auth-toggle-staff" style="font-size:12px;">↩️ رجوع لدخول الموظفين</a>
+        </div>
+      </div>
+
       <div class="auth-error" id="auth-error"></div>
     </div>
   </div>
@@ -491,6 +509,53 @@
     }
     function hideAuth() { overlay.style.display = "none"; authError.textContent = ""; }
 
+    // Staff login path — username + password
+    $("auth-staff-submit").addEventListener("click", async () => {
+      const username = $("auth-username").value.trim().toLowerCase();
+      const password = $("auth-password").value;
+      if (!username || !password) { authError.textContent = "أدخل اسم المستخدم وكلمة المرور"; return; }
+      authError.textContent = "";
+      try {
+        const res = await fetch(BASE + "?admin_action=staff_login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.token) {
+          authError.textContent = data.error || "خطأ في تسجيل الدخول";
+          return;
+        }
+        token = data.token;
+        localStorage.setItem(STORAGE_KEY, data.token);
+        hideAuth();
+        refresh();
+        startAutoRefresh();
+      } catch (e) {
+        authError.textContent = "خطأ: " + e.message;
+      }
+    });
+    $("auth-password").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") $("auth-staff-submit").click();
+    });
+    $("auth-username").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") $("auth-password").focus();
+    });
+    $("auth-toggle-admin").addEventListener("click", (e) => {
+      e.preventDefault();
+      $("auth-staff-mode").style.display = "none";
+      $("auth-admin-mode").style.display = "";
+      $("auth-title").textContent = "🔐 دخول الـ Admin";
+      authError.textContent = "";
+    });
+    $("auth-toggle-staff").addEventListener("click", (e) => {
+      e.preventDefault();
+      $("auth-staff-mode").style.display = "";
+      $("auth-admin-mode").style.display = "none";
+      $("auth-title").textContent = "🔐 تسجيل دخول الموظفين";
+      authError.textContent = "";
+    });
+
     authSubmit.addEventListener("click", () => {
       // Strip whitespace, including non-breaking space / zero-width chars
       // that sometimes sneak in when copying tokens from chat/email.
@@ -504,7 +569,15 @@
     authInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") authSubmit.click();
     });
-    logoutBtn.addEventListener("click", () => {
+    logoutBtn.addEventListener("click", async () => {
+      // Best-effort revoke any staff session on the server. Local logout
+      // happens regardless.
+      try {
+        await fetch(BASE + "?admin_action=staff_logout", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+        });
+      } catch (_) {}
       localStorage.removeItem(STORAGE_KEY);
       token = "";
       stopAutoRefresh();
