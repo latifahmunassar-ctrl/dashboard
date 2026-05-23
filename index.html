@@ -267,7 +267,9 @@
     function hideAuth() { overlay.style.display = "none"; authError.textContent = ""; }
 
     authSubmit.addEventListener("click", () => {
-      const t = authInput.value.trim();
+      // Strip whitespace, including non-breaking space / zero-width chars
+      // that sometimes sneak in when copying tokens from chat/email.
+      const t = authInput.value.replace(/[\s ​‌‍﻿]+/g, "");
       if (!t) return;
       token = t;
       localStorage.setItem(STORAGE_KEY, t);
