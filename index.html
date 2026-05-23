@@ -38,10 +38,21 @@
     .brand h1 { margin: 0; font-size: 22px; font-weight: 800; }
     .brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
     .last-updated { color: var(--muted); font-size: 13px; }
+    .refresh-btn {
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-family: inherit;
+      font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .refresh-btn:hover { background: var(--border); }
+    .refresh-btn:disabled { opacity: 0.5; cursor: wait; }
 
     .grid { display: grid; gap: 18px; }
+    .grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
     .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
     .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 1000px) {
+      .grid.cols-5 { grid-template-columns: repeat(2, 1fr); }
+    }
     @media (max-width: 900px) {
       .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
     }
@@ -53,45 +64,72 @@
       padding: 18px 20px;
       box-shadow: var(--shadow);
     }
-    .card h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-    .card .value { font-size: 28px; font-weight: 800; }
-    .card .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .card h2 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+    .card .value { font-size: 28px; font-weight: 800; line-height: 1; margin-top: 6px; }
+    .card.warn .value { color: var(--warn); }
+    .card.err .value { color: var(--err); }
+    .card.ok .value { color: var(--ok); }
+    .card .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
 
     .status-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
     .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(34,197,94,.18); }
     .dot.warn { background: var(--warn); box-shadow: 0 0 0 4px rgba(245,158,11,.18); }
     .dot.err { background: var(--err); box-shadow: 0 0 0 4px rgba(239,68,68,.18); }
+    .dot.muted { background: var(--muted); box-shadow: 0 0 0 4px rgba(148,163,184,.12); }
 
     section { margin-top: 28px; }
     section > h3 {
       margin: 0 0 12px; font-size: 14px; font-weight: 700;
       color: var(--muted); letter-spacing: .08em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 10px;
+    }
+    section > h3 .badge {
+      background: var(--panel-2); color: var(--text); border-radius: 999px;
+      padding: 2px 10px; font-size: 12px; font-weight: 700;
     }
 
     .panel-list { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
-    .panel-list .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); gap: 12px; }
+    .panel-list .row { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); gap: 12px; }
     .panel-list .row:last-child { border-bottom: none; }
-    .panel-list .row .label { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .panel-list .row .meta { color: var(--muted); font-size: 13px; direction: ltr; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+    .panel-list .row .label { display: flex; align-items: flex-start; gap: 10px; min-width: 0; flex: 1; }
+    .panel-list .row .label .label-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .panel-list .row .label .primary { font-weight: 500; word-break: break-word; }
+    .panel-list .row .label .secondary { color: var(--muted); font-size: 12px; direction: ltr; text-align: left; }
+    .panel-list .row .meta { color: var(--muted); font-size: 12px; direction: ltr; text-align: left; white-space: nowrap; }
+    .panel-list .empty { padding: 18px; color: var(--muted); font-size: 13px; text-align: center; }
 
     code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--text); background: var(--panel-2); padding: 2px 6px; border-radius: 6px; direction: ltr; display: inline-block; }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
-    .flow {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-      font-family: ui-monospace, monospace;
-      font-size: 13px;
-      color: var(--muted);
-      white-space: pre;
-      overflow-x: auto;
-      direction: ltr;
-      text-align: left;
-      box-shadow: var(--shadow);
+    .auth-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,.92);
+      display: grid; place-items: center; z-index: 100; padding: 24px;
+    }
+    .auth-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 28px; max-width: 480px; width: 100%; box-shadow: var(--shadow);
+    }
+    .auth-card h2 { margin: 0 0 8px; font-size: 18px; }
+    .auth-card p { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+    .auth-card input {
+      width: 100%; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: inherit; font-size: 13px; direction: ltr;
+    }
+    .auth-card button {
+      margin-top: 12px; width: 100%; padding: 10px; background: var(--accent); border: none;
+      border-radius: 8px; color: #0f172a; font-weight: 800; cursor: pointer; font-family: inherit;
+    }
+    .auth-error { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 1em; }
+
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .pill.received { background: rgba(245,158,11,.16); color: var(--warn); }
+    .pill.completed { background: rgba(34,197,94,.16); color: var(--ok); }
+    .pill.stalled { background: rgba(239,68,68,.16); color: var(--err); }
+    .pill.errored { background: rgba(239,68,68,.20); color: var(--err); }
+    .pill.pending_reply_approval, .pill.pending_correction, .pill.pending_sheet_approval, .pill.pending_category_choice {
+      background: rgba(56,189,248,.18); color: var(--accent);
     }
 
     footer { margin-top: 36px; color: var(--muted); font-size: 12px; text-align: center; }
@@ -108,125 +146,233 @@
           <p>نظرة عامة على حالة النظام ومكوناته</p>
         </div>
       </div>
-      <div class="last-updated">آخر تحديث: <span id="now"></span></div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="refresh-btn" id="refresh">↻ تحديث</button>
+        <button class="refresh-btn" id="logout" title="تسجيل خروج (مسح التوكن)">🔐</button>
+        <div class="last-updated">آخر تحديث: <span id="now">—</span></div>
+      </div>
     </header>
 
-    <div class="grid cols-3">
-      <div class="card">
-        <h2>WhatsApp Router</h2>
-        <div class="status-row"><span class="dot ok"></span><span>متصل ويعمل</span></div>
-        <div class="sub">webhook نشط على Twilio</div>
-      </div>
-      <div class="card">
-        <h2>Tourism-AI</h2>
-        <div class="status-row"><span class="dot ok"></span><span>منشور وفعّال</span></div>
-        <div class="sub">local parser + Claude fallback</div>
-      </div>
-      <div class="card">
-        <h2>HubSpot CRM</h2>
-        <div class="status-row"><span class="dot ok"></span><span>متصل</span></div>
-        <div class="sub">portal 148509683</div>
-      </div>
-    </div>
-
-    <section>
-      <h3>مكونات النظام</h3>
-      <div class="panel-list">
-        <div class="row">
-          <div class="label"><span class="dot ok"></span><span>Twilio WhatsApp Sender</span></div>
-          <div class="meta">whatsapp:+96891171630 · ONLINE</div>
-        </div>
-        <div class="row">
-          <div class="label"><span class="dot ok"></span><span>Supabase Edge Functions</span></div>
-          <div class="meta">project ofotvacszlmrqxzfjmtn</div>
-        </div>
-        <div class="row">
-          <div class="label"><span class="dot ok"></span><span>Supabase Database</span></div>
-          <div class="meta">hotels · tours · flights · whatsapp_sessions · faqs</div>
-        </div>
-        <div class="row">
-          <div class="label"><span class="dot ok"></span><span>Google Sheets Sync</span></div>
-          <div class="meta">sync-sheets · daily refresh</div>
-        </div>
-        <div class="row">
-          <div class="label"><span class="dot ok"></span><span>Anthropic Claude API</span></div>
-          <div class="meta">Sonnet/Haiku hybrid</div>
-        </div>
+    <section style="margin-top:0;">
+      <h3>أرقام اليوم</h3>
+      <div class="grid cols-5">
+        <div class="card"><h2>الرسائل اليوم</h2><div class="value" id="m-today">—</div></div>
+        <div class="card ok"><h2>اكتملت</h2><div class="value" id="m-completed">—</div></div>
+        <div class="card warn"><h2>proposals معلّقة</h2><div class="value" id="m-pending">—</div><div class="sub">تنتظر ردك</div></div>
+        <div class="card err"><h2>stalled</h2><div class="value" id="m-stalled">—</div><div class="sub">فشل صامت</div></div>
+        <div class="card err"><h2>أخطاء</h2><div class="value" id="m-errored">—</div></div>
       </div>
     </section>
 
     <section>
-      <h3>تدفق رسائل WhatsApp</h3>
-      <pre class="flow">WhatsApp message → Twilio webhook → WhatsApp-Router
-                                           │
-        ┌──────────────────────────────────┼──────────────────────────────────┐
-        ▼                                  ▼                                  ▼
-  Package request                    Complaint                         General inquiry
-        │                                  │                                  │
-  ├─ extract: destination/persons/date     ├─ HubSpot ticket                  ├─ lookup faqs table
-  ├─ HubSpot contact upsert                ├─ alert complaints staff          └─ reply best match
-  ├─ call Tourism-AI                       └─ reply acknowledgment
-  ├─ reply customer with program
-  └─ alert sales staff</pre>
+      <h3>proposals تنتظر ردك <span class="badge" id="p-badge">0</span></h3>
+      <div class="panel-list" id="proposals-list">
+        <div class="empty">جاري التحميل…</div>
+      </div>
+    </section>
+
+    <section>
+      <h3>آخر 50 رسالة (24h)</h3>
+      <div class="panel-list" id="audit-list">
+        <div class="empty">جاري التحميل…</div>
+      </div>
     </section>
 
     <section>
       <h3>نقاط نهاية مهمة</h3>
       <div class="panel-list">
         <div class="row">
-          <div class="label"><span>Webhook URL</span></div>
+          <div class="label"><div class="label-text"><span>Webhook URL</span></div></div>
           <div class="meta"><code>https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router</code></div>
         </div>
         <div class="row">
-          <div class="label"><span>Supabase Dashboard</span></div>
+          <div class="label"><div class="label-text"><span>Supabase Dashboard</span></div></div>
           <div class="meta"><a href="https://supabase.com/dashboard/project/ofotvacszlmrqxzfjmtn" target="_blank">فتح المشروع</a></div>
         </div>
         <div class="row">
-          <div class="label"><span>Twilio Console</span></div>
+          <div class="label"><div class="label-text"><span>Twilio Console</span></div></div>
           <div class="meta"><a href="https://console.twilio.com/" target="_blank">إدارة الـ sender والـ webhooks</a></div>
         </div>
         <div class="row">
-          <div class="label"><span>HubSpot CRM</span></div>
+          <div class="label"><div class="label-text"><span>HubSpot CRM</span></div></div>
           <div class="meta"><a href="https://app.hubspot.com/contacts/148509683" target="_blank">جهات الاتصال</a></div>
         </div>
         <div class="row">
-          <div class="label"><span>Tourism Frontend</span></div>
+          <div class="label"><div class="label-text"><span>Tourism Frontend</span></div></div>
           <div class="meta"><a href="https://latifahmunassar-ctrl.github.io/tourism-system/" target="_blank">واجهة الموظف</a></div>
         </div>
       </div>
     </section>
 
-    <section>
-      <h3>الإعداد الحالي</h3>
-      <div class="grid cols-2">
-        <div class="card">
-          <h2>أرقام التنبيهات</h2>
-          <div class="status-row"><span>المبيعات</span></div>
-          <div class="sub">whatsapp:+96877428881</div>
-          <div style="height:8px"></div>
-          <div class="status-row"><span>الشكاوى</span></div>
-          <div class="sub">whatsapp:+96877428881</div>
-        </div>
-        <div class="card">
-          <h2>الوجهات المدعومة</h2>
-          <div class="sub">تركيا · ماليزيا · تايلاند · إندونيسيا · فيتنام · روسيا · البوسنة · أذربيجان · جورجيا · المالديف · موريشيوس · كازاخستان · مصر · الإمارات</div>
-        </div>
-      </div>
-    </section>
-
     <footer>
-      ALEZZ Tourism System · لوحة تحكم داخلية
+      ALEZZ Tourism System · لوحة تحكم داخلية · يحدّث تلقائياً كل 30 ثانية
     </footer>
   </div>
 
+  <div class="auth-overlay" id="auth-overlay" style="display:none;">
+    <div class="auth-card">
+      <h2>🔐 توكن الوصول</h2>
+      <p>الصق LEGACY_ANON_JWT من Supabase secrets للسماح بقراءة البيانات الإدارية. يُحفظ محلياً في المتصفح.</p>
+      <input id="auth-input" type="password" placeholder="eyJhbGc..." autocomplete="off" />
+      <button id="auth-submit">دخول</button>
+      <div class="auth-error" id="auth-error"></div>
+    </div>
+  </div>
+
   <script>
-    (function () {
-      const now = new Date();
-      const fmt = new Intl.DateTimeFormat('ar', {
-        dateStyle: 'medium', timeStyle: 'short', hour12: false
-      });
-      document.getElementById('now').textContent = fmt.format(now);
-    })();
+    const ENDPOINT = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router?admin_action=dashboard_data";
+    const STORAGE_KEY = "alezz_dashboard_token";
+
+    const $ = (id) => document.getElementById(id);
+    const overlay = $("auth-overlay");
+    const authInput = $("auth-input");
+    const authSubmit = $("auth-submit");
+    const authError = $("auth-error");
+    const refreshBtn = $("refresh");
+    const logoutBtn = $("logout");
+
+    let token = localStorage.getItem(STORAGE_KEY) || "";
+    let refreshTimer = null;
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+    function fmtTime(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      return d.toLocaleString("ar", { dateStyle: "short", timeStyle: "short", hour12: false });
+    }
+    function fmtPhone(p) {
+      return String(p || "").replace(/^whatsapp:/, "");
+    }
+    function statusLabel(s) {
+      const map = {
+        pending_reply_approval: "بانتظار موافقتك",
+        pending_correction: "بانتظار صياغة الرد",
+        pending_sheet_approval: "بانتظار قرار الحفظ",
+        pending_category_choice: "بانتظار الكاتيجوري",
+        received: "received",
+        completed: "completed",
+        stalled: "stalled",
+        errored: "errored",
+      };
+      return map[s] || s;
+    }
+
+    function showAuth(msg) {
+      overlay.style.display = "grid";
+      authError.textContent = msg || "";
+      setTimeout(() => authInput.focus(), 60);
+    }
+    function hideAuth() { overlay.style.display = "none"; authError.textContent = ""; }
+
+    authSubmit.addEventListener("click", () => {
+      const t = authInput.value.trim();
+      if (!t) return;
+      token = t;
+      localStorage.setItem(STORAGE_KEY, t);
+      hideAuth();
+      refresh();
+    });
+    authInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") authSubmit.click();
+    });
+    logoutBtn.addEventListener("click", () => {
+      localStorage.removeItem(STORAGE_KEY);
+      token = "";
+      stopAutoRefresh();
+      showAuth();
+    });
+    refreshBtn.addEventListener("click", () => refresh());
+
+    function renderCounts(c) {
+      $("m-today").textContent = c.messages_today ?? 0;
+      $("m-completed").textContent = c.completed_today ?? 0;
+      $("m-pending").textContent = c.pending_proposals_total ?? 0;
+      $("m-stalled").textContent = c.stalled_today ?? 0;
+      $("m-errored").textContent = c.errored_today ?? 0;
+      $("p-badge").textContent = c.pending_proposals_total ?? 0;
+    }
+    function renderProposals(arr) {
+      const list = $("proposals-list");
+      if (!arr.length) {
+        list.innerHTML = '<div class="empty">✅ ولا proposal معلّق</div>';
+        return;
+      }
+      list.innerHTML = arr.map((p) => {
+        const cat = [p.proposed_intent, p.proposed_sub_intent].filter(Boolean).join(" / ");
+        return `
+          <div class="row">
+            <div class="label">
+              <span class="dot warn"></span>
+              <div class="label-text">
+                <span class="primary">${escapeHtml(p.customer_question)}</span>
+                <span class="secondary">${escapeHtml(p.customer_profile_name || "")} (${escapeHtml(fmtPhone(p.customer_phone))})${cat ? " · " + escapeHtml(cat) : ""}</span>
+              </div>
+            </div>
+            <div class="meta">
+              <span class="pill ${escapeHtml(p.status)}">${escapeHtml(statusLabel(p.status))}</span>
+              <div style="margin-top:4px">${fmtTime(p.created_at)}</div>
+            </div>
+          </div>`;
+      }).join("");
+    }
+    function renderAudit(arr) {
+      const list = $("audit-list");
+      if (!arr.length) {
+        list.innerHTML = '<div class="empty">ما في رسائل خلال 24 ساعة</div>';
+        return;
+      }
+      list.innerHTML = arr.map((a) => {
+        const dotCls = a.status === "completed" ? "ok" : a.status === "stalled" || a.status === "errored" ? "err" : a.status === "received" ? "warn" : "muted";
+        const err = a.error_message ? `<div class="secondary" style="color:var(--err)">${escapeHtml(a.error_message.slice(0,120))}</div>` : "";
+        return `
+          <div class="row">
+            <div class="label">
+              <span class="dot ${dotCls}"></span>
+              <div class="label-text">
+                <span class="primary">${escapeHtml((a.body || "").slice(0,140))}</span>
+                <span class="secondary">${escapeHtml(fmtPhone(a.from_phone))}</span>
+                ${err}
+              </div>
+            </div>
+            <div class="meta">
+              <span class="pill ${escapeHtml(a.status)}">${escapeHtml(a.status)}</span>
+              <div style="margin-top:4px">${fmtTime(a.received_at)}</div>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    async function refresh() {
+      if (!token) { showAuth(); return; }
+      refreshBtn.disabled = true;
+      try {
+        const res = await fetch(ENDPOINT, { headers: { Authorization: "Bearer " + token } });
+        if (res.status === 401) { showAuth("التوكن خطأ"); return; }
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        renderCounts(data.counts || {});
+        renderProposals(data.pending_proposals || []);
+        renderAudit(data.recent_audit || []);
+        $("now").textContent = fmtTime(data.generated_at);
+      } catch (e) {
+        console.error(e);
+        $("now").textContent = "خطأ: " + e.message;
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      refreshTimer = setInterval(refresh, 30_000);
+    }
+    function stopAutoRefresh() {
+      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    }
+
+    if (!token) showAuth();
+    else { refresh(); startAutoRefresh(); }
   </script>
 </body>
 </html>
