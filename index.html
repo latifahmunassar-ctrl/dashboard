@@ -123,6 +123,32 @@
     }
     .auth-error { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 1em; }
 
+    .ai-toggle-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 22px 24px; display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; box-shadow: var(--shadow); margin-bottom: 22px;
+    }
+    .ai-toggle-card.on { border-color: rgba(34,197,94,.4); }
+    .ai-toggle-card.off { border-color: rgba(239,68,68,.4); }
+    .ai-toggle-info h2 { margin: 0; font-size: 22px; font-weight: 800; }
+    .ai-toggle-info p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .big-toggle {
+      background: var(--ok); color: white; border: none; padding: 14px 26px;
+      border-radius: 999px; font-size: 16px; font-weight: 800; cursor: pointer;
+      font-family: inherit; min-width: 140px;
+    }
+    .big-toggle.off { background: var(--err); }
+    .big-toggle:disabled { opacity: 0.6; cursor: wait; }
+
+    .toggle-btn {
+      background: var(--ok); color: white; border: none; padding: 6px 12px;
+      border-radius: 999px; font-size: 11px; font-weight: 700; cursor: pointer;
+      font-family: inherit; min-width: 70px;
+    }
+    .toggle-btn.off { background: var(--err); }
+    .toggle-btn.inherit { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+    .toggle-btn:disabled { opacity: 0.6; cursor: wait; }
+
     .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
     .pill.received { background: rgba(245,158,11,.16); color: var(--warn); }
     .pill.completed { background: rgba(34,197,94,.16); color: var(--ok); }
@@ -153,6 +179,14 @@
       </div>
     </header>
 
+    <div class="ai-toggle-card" id="ai-toggle-card">
+      <div class="ai-toggle-info">
+        <h2 id="ai-toggle-label">⏳ تحميل…</h2>
+        <p>المفتاح العام للذكاء الاصطناعي. لو موقوف، البوت ما يرد على أي محادثة (إلا اللي مفعّل فيها overrides).</p>
+      </div>
+      <button class="big-toggle" id="ai-toggle-btn" disabled>—</button>
+    </div>
+
     <section style="margin-top:0;">
       <h3>أرقام اليوم</h3>
       <div class="grid cols-5">
@@ -161,6 +195,13 @@
         <div class="card warn"><h2>proposals معلّقة</h2><div class="value" id="m-pending">—</div><div class="sub">تنتظر ردك</div></div>
         <div class="card err"><h2>stalled</h2><div class="value" id="m-stalled">—</div><div class="sub">فشل صامت</div></div>
         <div class="card err"><h2>أخطاء</h2><div class="value" id="m-errored">—</div></div>
+      </div>
+    </section>
+
+    <section>
+      <h3>المحادثات النشطة (24h) <span class="badge" id="c-badge">0</span></h3>
+      <div class="panel-list" id="conversations-list">
+        <div class="empty">جاري التحميل…</div>
       </div>
     </section>
 
@@ -220,7 +261,8 @@
   </div>
 
   <script>
-    const ENDPOINT = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router?admin_action=dashboard_data";
+    const BASE = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router";
+    const ENDPOINT = BASE + "?admin_action=dashboard_data";
     const STORAGE_KEY = "alezz_dashboard_token";
 
     const $ = (id) => document.getElementById(id);
@@ -286,6 +328,111 @@
       showAuth();
     });
     refreshBtn.addEventListener("click", () => refresh());
+
+    let globalAiEnabled = null;
+
+    async function callApi(action, body) {
+      const res = await fetch(BASE + "?admin_action=" + action, {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    }
+
+    function renderGlobalToggle(enabled) {
+      globalAiEnabled = enabled;
+      const card = $("ai-toggle-card");
+      const label = $("ai-toggle-label");
+      const btn = $("ai-toggle-btn");
+      card.className = "ai-toggle-card " + (enabled ? "on" : "off");
+      label.textContent = enabled ? "🟢 AI شغّال" : "🔴 AI موقوف";
+      btn.textContent = enabled ? "إيقاف" : "تشغيل";
+      btn.className = "big-toggle" + (enabled ? "" : " off");
+      btn.disabled = false;
+    }
+    $("ai-toggle-btn").addEventListener("click", async () => {
+      const btn = $("ai-toggle-btn");
+      btn.disabled = true;
+      try {
+        const next = !globalAiEnabled;
+        await callApi("set_global_ai", { enabled: next });
+        renderGlobalToggle(next);
+        refresh();
+      } catch (e) {
+        alert("فشل: " + e.message);
+        btn.disabled = false;
+      }
+    });
+
+    function renderConversations(arr) {
+      const list = $("conversations-list");
+      $("c-badge").textContent = arr.length;
+      if (!arr.length) {
+        list.innerHTML = '<div class="empty">ما في محادثات نشطة خلال 24 ساعة</div>';
+        return;
+      }
+      list.innerHTML = arr.map((c) => {
+        const ph = fmtPhone(c.phone);
+        const inherit = c.ai_enabled === null || c.ai_enabled === undefined;
+        const effective = inherit ? globalAiEnabled : c.ai_enabled;
+        const cls = inherit ? "inherit" : (c.ai_enabled ? "" : "off");
+        const txt = inherit
+          ? `🟢 موروث (global)`
+          : c.ai_enabled
+            ? `🟢 مفعّل`
+            : `🔴 موقوف`;
+        const dotCls = effective ? "ok" : "err";
+        return `
+          <div class="row" data-phone="${escapeHtml(c.phone)}">
+            <div class="label">
+              <span class="dot ${dotCls}"></span>
+              <div class="label-text">
+                <span class="primary">${escapeHtml(c.profile_name || ph)}</span>
+                <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}</span>
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button class="toggle-btn ${cls}" data-action="toggle" data-phone="${escapeHtml(c.phone)}" data-current="${c.ai_enabled === null ? 'null' : c.ai_enabled}">${txt}</button>
+              <button class="toggle-btn inherit" data-action="reset" data-phone="${escapeHtml(c.phone)}" title="استخدم الإعداد العام" style="min-width:auto;padding:6px 10px">↺</button>
+            </div>
+          </div>`;
+      }).join("");
+      // Bind toggle buttons
+      list.querySelectorAll("[data-action=toggle]").forEach((b) => {
+        b.addEventListener("click", () => toggleConversation(b.dataset.phone, b.dataset.current, b));
+      });
+      list.querySelectorAll("[data-action=reset]").forEach((b) => {
+        b.addEventListener("click", () => resetConversation(b.dataset.phone, b));
+      });
+    }
+
+    async function toggleConversation(phone, current, btn) {
+      // Cycle: null/inherit → true → false → null
+      let next;
+      if (current === "null") next = true;
+      else if (current === "true") next = false;
+      else next = null;
+      btn.disabled = true;
+      try {
+        await callApi("set_conversation_ai", { phone, enabled: next });
+        refresh();
+      } catch (e) {
+        alert("فشل: " + e.message);
+        btn.disabled = false;
+      }
+    }
+    async function resetConversation(phone, btn) {
+      btn.disabled = true;
+      try {
+        await callApi("set_conversation_ai", { phone, enabled: null });
+        refresh();
+      } catch (e) {
+        alert("فشل: " + e.message);
+        btn.disabled = false;
+      }
+    }
 
     function renderCounts(c) {
       $("m-today").textContent = c.messages_today ?? 0;
@@ -354,7 +501,9 @@
         if (res.status === 401) { showAuth("التوكن خطأ"); return; }
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
+        renderGlobalToggle(!!data.global_ai_enabled);
         renderCounts(data.counts || {});
+        renderConversations(data.conversations || []);
         renderProposals(data.pending_proposals || []);
         renderAudit(data.recent_audit || []);
         $("now").textContent = fmtTime(data.generated_at);
