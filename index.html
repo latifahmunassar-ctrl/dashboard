@@ -9,18 +9,35 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f8fafc;            /* page background — near-white */
-      --panel: #ffffff;          /* card surface */
-      --panel-2: #f1f5f9;        /* secondary surface (inputs, code) */
+      --bg: #ffffff;             /* page background — pure white */
+      --panel: #ffffff;          /* default panel/card surface — white */
+      --panel-2: #f1f5f9;        /* secondary surface (inputs, code, hovers) */
       --border: #e2e8f0;         /* hairlines */
-      --text: #0f172a;           /* primary text — dark navy */
-      --muted: #64748b;          /* secondary text */
-      --accent: #0284c7;         /* primary action — slightly darker sky */
-      --ok: #16a34a;             /* darker greens/reds/ambers for contrast on white */
+      --text: #0f172a;           /* primary text — dark navy, high contrast */
+      --muted: #475569;          /* secondary text — slate-600 for clarity */
+      --accent: #0284c7;
+      --ok: #16a34a;
       --warn: #d97706;
       --err: #dc2626;
       --shadow: 0 1px 3px rgba(15,23,42,.06), 0 4px 12px rgba(15,23,42,.04);
     }
+
+    /* Each major section wears a subtle hue so the page reads as distinct
+       blocks instead of one big white slab. Cards & lists inside stay
+       fully white — that gives layered contrast within the tinted
+       container. Selectors use :has() to target by content, no HTML
+       changes needed. */
+    section {
+      padding: 16px 20px;
+      border-radius: 14px;
+      margin-top: 22px;
+    }
+    section:has(.grid.cols-5)        { background: #f8fafc; }  /* stats — neutral */
+    section:has(#staff-list)         { background: #faf5ff; }  /* violet */
+    section:has(#rules-list)         { background: #f0fdf4; }  /* green  */
+    section:has(#filter-urgent)      { background: #fffbeb; }  /* amber  */
+    section:has(#conversations-list) { background: #f0f9ff; }  /* sky    */
+    section:has(#proposals-list)     { background: #fef2f2; }  /* rose   */
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: "Tajawal", system-ui, sans-serif; }
     .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
