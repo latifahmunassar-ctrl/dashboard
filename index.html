@@ -461,6 +461,18 @@
         <input type="text" id="filter-phone-search" placeholder="بحث: أدخل رقم أو جزء من رقم العميل" style="flex:1; min-width:200px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-weight:600; font-family:inherit;" />
         <button class="filter-btn" id="phone-search-clear" style="display:none;">✕ مسح</button>
       </div>
+      <div class="filter-bar admin-only-filter" id="filter-staff-bar" style="margin-bottom:8px;">
+        <span class="filter-label">الموظف</span>
+      </div>
+      <div class="filter-bar" id="filter-customer-bar" style="margin-bottom:8px;">
+        <span class="filter-label">العميل</span>
+      </div>
+      <div class="filter-bar" id="filter-case-bar" style="margin-bottom:8px;">
+        <span class="filter-label">الحالة</span>
+      </div>
+      <button class="filter-urgent" id="filter-urgent" data-active="false" style="margin-bottom:10px;">
+        🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
+      </button>
       <div class="panel-list" id="conversations-list">
         <div class="empty">جاري التحميل…</div>
       </div>
@@ -504,22 +516,6 @@
           <select id="rule-staff"><option value="">— اختر موظف —</option></select>
           <button id="rule-add">إضافة قاعدة</button>
         </div>
-      </div>
-    </section>
-
-    <section>
-      <h3>الفلاتر</h3>
-      <button class="filter-urgent" id="filter-urgent" data-active="false">
-        🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
-      </button>
-      <div class="filter-bar admin-only-filter" id="filter-staff-bar">
-        <span class="filter-label">الموظف</span>
-      </div>
-      <div class="filter-bar" id="filter-customer-bar">
-        <span class="filter-label">العميل</span>
-      </div>
-      <div class="filter-bar" id="filter-case-bar">
-        <span class="filter-label">الحالة</span>
       </div>
     </section>
 
