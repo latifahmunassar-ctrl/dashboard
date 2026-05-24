@@ -51,6 +51,34 @@
     /* "حسابي" (change-own-password) appears only in staff mode. */
     section:has(#account-form) { display: none; }
     body.staff-mode section:has(#account-form) { display: block; }
+    /* Monitor mode — only the complaints panel + stats are visible.
+       Everything else gets hidden. */
+    body.monitor-mode .ai-toggle-card,
+    body.monitor-mode section:has(#staff-list),
+    body.monitor-mode section:has(#rules-list),
+    body.monitor-mode section:has(#filter-customer-bar),
+    body.monitor-mode section:has(#conversations-list),
+    body.monitor-mode section:has(#proposals-list),
+    body.monitor-mode section:has(#account-form) {
+      display: none;
+    }
+    /* Complaints section is hidden in plain admin/sales view by default;
+       made visible to admin too so they can see the same queue as
+       monitors. */
+    section:has(#complaints-list) {
+      display: block;
+    }
+    body.staff-mode section:has(#complaints-list) {
+      display: none;
+    }
+    body.monitor-mode section:has(#complaints-list) {
+      display: block;
+    }
+    body.monitor-mode .last-updated::before {
+      content: "👁️ وضع المراقبين · ";
+      color: var(--accent); font-weight: 800;
+    }
+
     /* Per-staff conversation filter — admin only. Staff see their own
        conversations once we add scoping; for now this bar is hidden in
        staff mode. */
@@ -430,6 +458,27 @@
     </section>
 
     <section>
+      <h3>الشكاوى <span class="badge" id="cm-badge">0</span></h3>
+      <div class="filter-bar" id="filter-severity-bar">
+        <span class="filter-label">الخطورة</span>
+        <button class="filter-btn" data-kind="cm-sev" data-value="">الكل <span class="cnt">0</span></button>
+        <button class="filter-btn" data-kind="cm-sev" data-value="urgent">🚨 عاجلة <span class="cnt">0</span></button>
+        <button class="filter-btn" data-kind="cm-sev" data-value="medium">⚠️ متوسطة <span class="cnt">0</span></button>
+        <button class="filter-btn" data-kind="cm-sev" data-value="normal">عادية <span class="cnt">0</span></button>
+      </div>
+      <div class="filter-bar" id="filter-cstatus-bar">
+        <span class="filter-label">الحالة</span>
+        <button class="filter-btn" data-kind="cm-status" data-value="">الكل <span class="cnt">0</span></button>
+        <button class="filter-btn" data-kind="cm-status" data-value="in_progress">جاري حلها <span class="cnt">0</span></button>
+        <button class="filter-btn" data-kind="cm-status" data-value="resolved">حُلّت <span class="cnt">0</span></button>
+        <button class="filter-btn" data-kind="cm-status" data-value="closed_unresolved">مغلقة بدون حل <span class="cnt">0</span></button>
+      </div>
+      <div class="panel-list" id="complaints-list">
+        <div class="empty">جاري التحميل…</div>
+      </div>
+    </section>
+
+    <section>
       <h3>نقاط نهاية مهمة</h3>
       <div class="panel-list">
         <div class="row">
@@ -486,7 +535,7 @@
       <div id="auth-picker">
         <button class="role-btn" id="role-admin">🛡️  الإدمن</button>
         <button class="role-btn" id="role-sales">💼  المبيعات</button>
-        <button class="role-btn disabled" id="role-monitor" disabled>👁️  المراقبين — قريباً</button>
+        <button class="role-btn" id="role-monitor">👁️  المراقبين</button>
       </div>
 
       <!-- Sales form (was "staff") -->
@@ -530,7 +579,10 @@
     const USERNAME_KEY = "alezz_dashboard_username";
 
     function applyRole(role) {
-      document.body.classList.toggle("staff-mode", role === "staff");
+      document.body.classList.remove("staff-mode", "monitor-mode");
+      if (role === "sales" || role === "staff") document.body.classList.add("staff-mode");
+      else if (role === "monitor") document.body.classList.add("monitor-mode");
+      // role === "admin" → no class, full view
     }
     function setSession(newToken, role) {
       token = newToken;
@@ -612,7 +664,9 @@
         // password. Never store the password itself — admin deleting
         // the staff account immediately invalidates server-side.
         localStorage.setItem(USERNAME_KEY, username);
-        setSession(data.token, "staff");
+        // Backend tells us the role (sales | monitor). Default to sales.
+        const userRole = (data.staff && data.staff.role) || "sales";
+        setSession(data.token, userRole);
         hideAuth();
         refresh();
         startAutoRefresh();
@@ -664,8 +718,15 @@
       setTimeout(() => (lastUser ? $("auth-password") : $("auth-username")).focus(), 60);
     }
     $("role-admin").addEventListener("click", showAuthAdmin);
-    $("role-sales").addEventListener("click", showAuthSales);
-    // المراقبين لسه ما اتبنى — الزر معطّل ولا يفعل شي
+    $("role-sales").addEventListener("click", () => {
+      showAuthSales();
+      $("auth-title").textContent = "💼 دخول المبيعات";
+    });
+    $("role-monitor").addEventListener("click", () => {
+      showAuthSales();   // same form (username + password)
+      $("auth-title").textContent = "👁️ دخول المراقبين";
+      $("auth-help").textContent = "أدخل اسم المستخدم وكلمة المرور.";
+    });
     document.querySelectorAll(".auth-back").forEach(a =>
       a.addEventListener("click", (e) => { e.preventDefault(); showAuthPicker(); }));
 
@@ -1031,6 +1092,121 @@
     // Filter state — proposals panel only
     const CUSTOMER_TYPES = ["NEW_CUSTOMER", "REPEAT_CUSTOMER", "VIP_CUSTOMER", "CORPORATE_BUSINESS", "PARTNERSHIP"];
     const CASE_TYPES = ["INQUIRY", "BOOKING_REQUEST", "COMPLAINT", "CANCELLATION", "MODIFICATION"];
+    let complaintsCache = [];
+    let filterCmSev = "";
+    let filterCmStatus = "";
+
+    async function loadComplaints() {
+      try {
+        const res = await fetch(BASE + "?admin_action=list_complaints", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        complaintsCache = data.complaints || [];
+        renderComplaints();
+      } catch (e) {
+        $("complaints-list").innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    function renderComplaints() {
+      const list = $("complaints-list");
+      // Counts on filter buttons (independent — total per category)
+      const sevCounts = { "": complaintsCache.length };
+      ["urgent","medium","normal"].forEach(s => sevCounts[s] = complaintsCache.filter(c => c.severity === s).length);
+      const stCounts = { "": complaintsCache.length };
+      ["in_progress","resolved","closed_unresolved"].forEach(s => stCounts[s] = complaintsCache.filter(c => c.status === s).length);
+      document.querySelectorAll('.filter-btn[data-kind="cm-sev"]').forEach(b => {
+        b.querySelector(".cnt").textContent = sevCounts[b.dataset.value] ?? 0;
+        b.classList.toggle("active", b.dataset.value === filterCmSev);
+      });
+      document.querySelectorAll('.filter-btn[data-kind="cm-status"]').forEach(b => {
+        b.querySelector(".cnt").textContent = stCounts[b.dataset.value] ?? 0;
+        b.classList.toggle("active", b.dataset.value === filterCmStatus);
+      });
+
+      const filtered = complaintsCache.filter(c => {
+        if (filterCmSev && c.severity !== filterCmSev) return false;
+        if (filterCmStatus && c.status !== filterCmStatus) return false;
+        return true;
+      });
+      $("cm-badge").textContent = filtered.length;
+      if (!filtered.length) {
+        list.innerHTML = '<div class="empty">ولا شكوى مطابقة</div>';
+        return;
+      }
+      const sevLabel = { urgent: "🚨 عاجلة", medium: "⚠️ متوسطة", normal: "عادية" };
+      const stLabel = { in_progress: "جاري حلها", resolved: "حُلّت", closed_unresolved: "مغلقة بدون حل" };
+      list.innerHTML = filtered.map(c => {
+        const sevPill = c.severity === "urgent" ? "tag-complaint" : c.severity === "medium" ? "tag-case" : "tag-new";
+        const stPill = c.status === "resolved" ? "tag-booking" : c.status === "closed_unresolved" ? "tag-new" : "tag-case";
+        const phone = (c.customer_phone || "").replace(/^whatsapp:/, "");
+        const cname = c.customer_name || phone;
+        const cmtype = c.complaint_type || "";
+        const resolution = c.resolution_notes ? `<div style="margin-top:6px; font-size:12px; color:var(--muted);">الحل: ${escapeHtml(c.resolution_notes)}</div>` : "";
+        const urgentRow = c.severity === "urgent" ? " urgent-row" : "";
+        return `
+          <div class="row${urgentRow}" data-id="${escapeHtml(c.id)}">
+            <div class="label">
+              <span class="dot ${c.severity === 'urgent' ? 'err' : c.severity === 'medium' ? 'warn' : 'muted'}"></span>
+              <div class="label-text">
+                <span class="primary">${escapeHtml(c.description || "—")}</span>
+                <span class="secondary">${escapeHtml(cname)} (${escapeHtml(phone)})${cmtype ? " · " + escapeHtml(cmtype) : ""} · ${escapeHtml(fmtTime(c.created_at))}</span>
+                <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
+                  <span class="pill ${sevPill}">${escapeHtml(sevLabel[c.severity] || c.severity)}</span>
+                  <span class="pill ${stPill}">${escapeHtml(stLabel[c.status] || c.status)}</span>
+                  ${c.assigned_staff_name ? `<span class="pill tag-repeat">👤 ${escapeHtml(c.assigned_staff_name)}</span>` : ""}
+                </div>
+                ${resolution}
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px; min-width:140px;">
+              <select class="assign-control" data-cm-action="severity" data-id="${escapeHtml(c.id)}">
+                <option value="normal"${c.severity==='normal'?' selected':''}>عادية</option>
+                <option value="medium"${c.severity==='medium'?' selected':''}>متوسطة</option>
+                <option value="urgent"${c.severity==='urgent'?' selected':''}>عاجلة</option>
+              </select>
+              <select class="assign-control" data-cm-action="status" data-id="${escapeHtml(c.id)}">
+                <option value="in_progress"${c.status==='in_progress'?' selected':''}>جاري حلها</option>
+                <option value="resolved"${c.status==='resolved'?' selected':''}>حُلّت</option>
+                <option value="closed_unresolved"${c.status==='closed_unresolved'?' selected':''}>مغلقة بدون حل</option>
+              </select>
+              <button class="toggle-btn" data-cm-action="resolution" data-id="${escapeHtml(c.id)}" style="min-width:auto;padding:6px 10px;font-size:11px;">✏️ كيف حُلّت</button>
+            </div>
+          </div>`;
+      }).join("");
+      list.querySelectorAll("[data-cm-action]").forEach(el => {
+        const action = el.dataset.cmAction;
+        if (action === "severity" || action === "status") {
+          el.addEventListener("change", () => updateComplaint(el.dataset.id, { [action]: el.value }));
+        } else if (action === "resolution") {
+          el.addEventListener("click", () => {
+            const current = (complaintsCache.find(c => c.id === el.dataset.id) || {}).resolution_notes || "";
+            const notes = prompt("كيف تم حل الشكوى؟", current);
+            if (notes !== null) updateComplaint(el.dataset.id, { resolution_notes: notes, status: "resolved" });
+          });
+        }
+      });
+    }
+    async function updateComplaint(id, patch) {
+      try {
+        const res = await fetch(BASE + "?admin_action=upsert_complaint", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...patch }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        loadComplaints();
+      } catch (e) { alert("فشل: " + e.message); }
+    }
+    function bindComplaintFilters() {
+      document.querySelectorAll('.filter-btn[data-kind="cm-sev"]').forEach(b =>
+        b.addEventListener("click", () => { filterCmSev = b.dataset.value; renderComplaints(); }));
+      document.querySelectorAll('.filter-btn[data-kind="cm-status"]').forEach(b =>
+        b.addEventListener("click", () => { filterCmStatus = b.dataset.value; renderComplaints(); }));
+    }
+    bindComplaintFilters();
+
     let proposalsCache = [];
     let filterCustomer = "";    // "" = all
     let filterCase = "";        // "" = all
@@ -1275,6 +1451,7 @@
         renderRules(data.routing_rules || []);
         renderConversations(data.conversations || []);
         renderProposals(data.pending_proposals || []);
+        loadComplaints();
         $("now").textContent = fmtTime(data.generated_at);
       } catch (e) {
         console.error(e);
