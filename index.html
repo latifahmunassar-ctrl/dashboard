@@ -455,8 +455,16 @@
       <div id="auth-staff-mode">
         <input id="auth-username" type="text" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" />
         <div style="height:8px"></div>
-        <input id="auth-password" type="password" placeholder="كلمة المرور" autocomplete="current-password" />
-        <button id="auth-staff-submit">دخول</button>
+        <div style="position:relative;">
+          <input id="auth-password" type="password" placeholder="كلمة المرور" autocomplete="current-password" style="padding-left:40px;" />
+          <button type="button" id="auth-show-password" title="إظهار/إخفاء كلمة المرور"
+            style="position:absolute; top:50%; left:8px; transform:translateY(-50%); background:transparent; border:none; cursor:pointer; font-size:16px; color:var(--muted); padding:4px 6px;">👁️</button>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13px; color:var(--muted); cursor:pointer;">
+          <input id="auth-remember" type="checkbox" style="width:auto; margin:0;" />
+          <span>تذكّرني (دخول تلقائي لمدة 30 يوم)</span>
+        </label>
+        <button id="auth-staff-submit" style="margin-top:10px;">دخول</button>
         <div style="text-align:center; margin-top:10px;">
           <a href="#" id="auth-toggle-admin" style="font-size:12px;">دخول الـ admin بالتوكن الرئيسي</a>
         </div>
@@ -480,6 +488,7 @@
     const ENDPOINT = BASE + "?admin_action=dashboard_data";
     const STORAGE_KEY = "alezz_dashboard_token";
     const ROLE_KEY = "alezz_dashboard_role";
+    const USERNAME_KEY = "alezz_dashboard_username";
 
     function applyRole(role) {
       document.body.classList.toggle("staff-mode", role === "staff");
@@ -537,27 +546,40 @@
     function showAuth(msg) {
       overlay.style.display = "grid";
       authError.textContent = msg || "";
-      setTimeout(() => authInput.focus(), 60);
+      // Pre-fill the username from the last successful login so the
+      // operator only needs to retype the password.
+      const lastUser = localStorage.getItem(USERNAME_KEY) || "";
+      if ($("auth-username")) $("auth-username").value = lastUser;
+      if ($("auth-password")) $("auth-password").value = "";
+      setTimeout(() => {
+        if (lastUser && $("auth-password")) $("auth-password").focus();
+        else if ($("auth-username")) $("auth-username").focus();
+      }, 60);
     }
     function hideAuth() { overlay.style.display = "none"; authError.textContent = ""; }
 
-    // Staff login path — username + password
+    // Staff login path — username + password (+ optional "تذكّرني")
     $("auth-staff-submit").addEventListener("click", async () => {
       const username = $("auth-username").value.trim().toLowerCase();
       const password = $("auth-password").value;
+      const remember = $("auth-remember").checked;
       if (!username || !password) { authError.textContent = "أدخل اسم المستخدم وكلمة المرور"; return; }
       authError.textContent = "";
       try {
         const res = await fetch(BASE + "?admin_action=staff_login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, remember }),
         });
         const data = await res.json();
         if (!res.ok || !data.token) {
           authError.textContent = data.error || "خطأ في تسجيل الدخول";
           return;
         }
+        // Remember just the username so next visit only needs the
+        // password. Never store the password itself — admin deleting
+        // the staff account immediately invalidates server-side.
+        localStorage.setItem(USERNAME_KEY, username);
         setSession(data.token, "staff");
         hideAuth();
         refresh();
@@ -565,6 +587,13 @@
       } catch (e) {
         authError.textContent = "خطأ: " + e.message;
       }
+    });
+    // Show / hide password
+    $("auth-show-password").addEventListener("click", () => {
+      const pw = $("auth-password");
+      const btn = $("auth-show-password");
+      if (pw.type === "password") { pw.type = "text"; btn.textContent = "🙈"; }
+      else { pw.type = "password"; btn.textContent = "👁️"; }
     });
     $("auth-password").addEventListener("keydown", (e) => {
       if (e.key === "Enter") $("auth-staff-submit").click();
