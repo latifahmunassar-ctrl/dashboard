@@ -418,6 +418,26 @@
       cursor: pointer; min-width: 160px; color: var(--text);
     }
     .filter-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    /* Destination chips with remove × */
+    .dest-chips {
+      display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+      min-height: 32px;
+    }
+    .dest-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #ecfeff; color: #155e75; border: 1px solid #a5f3fc;
+      padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    }
+    .dest-chip button {
+      background: none; border: none; color: #155e75; cursor: pointer;
+      font-size: 16px; font-weight: 800; padding: 0 0 0 4px; line-height: 1;
+    }
+    .dest-chip button:hover { color: var(--err); }
+    .dest-empty {
+      background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb;
+      padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    }
     .filter-urgent {
       background: var(--panel-2); border: 1px solid rgba(239,68,68,.4); color: var(--err);
       padding: 10px 16px; border-radius: 999px; font-family: inherit;
@@ -503,6 +523,23 @@
       </div>
     </div>
 
+    <!-- Destinations editor modal -->
+    <div class="auth-overlay" id="dest-editor-overlay" style="display:none;">
+      <div class="auth-card" style="text-align:right; max-width:480px;">
+        <h2 style="margin-top:0;">🌍 وجهات <span id="dest-editor-name"></span></h2>
+        <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">اختاري الوجهات اللي يتعامل معها الموظف. القائمة فاضية = كل الوجهات.</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+          <select id="dest-editor-add" class="filter-select" style="min-width:200px;"></select>
+          <button type="button" id="dest-editor-clear" class="filter-btn" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">🌐 الكل</button>
+        </div>
+        <div id="dest-editor-chips" class="dest-chips" style="margin-bottom:18px; padding:8px; background:#f8fafc; border-radius:8px; border:1px solid #e5e7eb;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="dest-editor-cancel" style="padding:10px 16px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">إلغاء</button>
+          <button id="dest-editor-save" style="padding:10px 20px; background:var(--accent); color:white; border:none; border-radius:8px; font-weight:800; cursor:pointer; font-family:inherit;">حفظ</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Start-mode picker — يظهر لما الادمن يبي يشغل الـ AI -->
     <div class="auth-overlay" id="ai-start-overlay" style="display:none;">
       <div class="auth-card" style="text-align:right;">
@@ -577,17 +614,26 @@
       <h3>الموظفون <span class="badge" id="s-badge">0</span></h3>
       <div class="panel-list" id="staff-list">
         <div class="empty">جاري التحميل…</div>
-        <div class="form-row" id="staff-form" style="flex-wrap:wrap; gap:8px;">
-          <input id="staff-name" placeholder="الاسم (مثل: طلال)" />
-          <input id="staff-phone" placeholder="الجوال (+968…)" />
-          <input id="staff-username" placeholder="اسم المستخدم (اختياري)" />
-          <input id="staff-password" type="password" placeholder="كلمة السر (اختياري، 4 أحرف+)" />
-          <select id="staff-role" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-weight:600;">
-            <option value="sales">💼 موظف مبيعات</option>
-            <option value="monitor">👁️ مراقب</option>
-          </select>
-          <input id="staff-destinations" placeholder="🌍 الوجهات (مثل: ماليزيا، تركيا) — فاضي = الكل" style="min-width:300px;" />
-          <button id="staff-add">إضافة</button>
+        <div class="form-row" id="staff-form" style="flex-wrap:wrap; gap:8px; flex-direction:column; align-items:stretch;">
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <input id="staff-name" placeholder="الاسم (مثل: طلال)" />
+            <input id="staff-phone" placeholder="الجوال (+968…)" />
+            <input id="staff-username" placeholder="اسم المستخدم (اختياري)" />
+            <input id="staff-password" type="password" placeholder="كلمة السر (اختياري، 4 أحرف+)" />
+            <select id="staff-role" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-weight:600;">
+              <option value="sales">💼 موظف مبيعات</option>
+              <option value="monitor">👁️ مراقب</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:4px; border-top:1px dashed #e5e7eb;">
+            <span style="font-weight:800; font-size:13px;">🌍 الوجهات:</span>
+            <select id="staff-dest-add" class="filter-select" style="min-width:200px;"></select>
+            <button type="button" id="staff-dest-clear" class="filter-btn" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">🌐 الكل</button>
+            <div id="staff-dest-chips" class="dest-chips"></div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button id="staff-add">إضافة</button>
+          </div>
         </div>
       </div>
     </section>
@@ -1051,14 +1097,62 @@
         arr.filter(s => s.active).map(s =>
           `<option value="${escapeHtml(s.phone)}">${escapeHtml(s.name)}</option>`).join("");
     }
+    // قائمة الوجهات اللي يتعرفها النظام — مطابقة لـ DESTINATION_HINTS
+    // في الـ Edge Function. تخليها هنا تضمن إن الـ dropdown يعرض نفس
+    // الأسماء اللي تكتشف من رسائل العملاء.
+    const KNOWN_DESTINATIONS = ["ماليزيا", "تركيا", "إندونيسيا", "فيتنام", "تايلاند", "البوسنة", "روسيا"];
+
+    // Generic chips renderer reused by add-form + edit modal.
+    function renderDestChips(containerEl, list, onRemove) {
+      if (!list.length) {
+        containerEl.innerHTML = '<span class="dest-empty">🌐 كل الوجهات</span>';
+        return;
+      }
+      containerEl.innerHTML = list.map((d, i) =>
+        `<span class="dest-chip">🌍 ${escapeHtml(d)}<button type="button" data-idx="${i}" aria-label="إزالة">×</button></span>`
+      ).join("");
+      containerEl.querySelectorAll(".dest-chip button").forEach(b =>
+        b.addEventListener("click", () => onRemove(Number(b.dataset.idx))));
+    }
+    function populateDestDropdown(selectEl, excluded) {
+      const ex = new Set(excluded);
+      const remaining = KNOWN_DESTINATIONS.filter(d => !ex.has(d));
+      selectEl.innerHTML = '<option value="">➕ اختر وجهة لإضافتها</option>' +
+        remaining.map(d => `<option value="${escapeHtml(d)}">🌍 ${escapeHtml(d)}</option>`).join("");
+      selectEl.value = "";
+      // عطّل لما تكون كل الوجهات مختارة
+      selectEl.disabled = remaining.length === 0;
+    }
+
+    // ── Add-form destinations state ─────────────────────────────────────
+    let addFormDest = [];
+    function refreshAddFormDest() {
+      renderDestChips($("staff-dest-chips"), addFormDest, (idx) => {
+        addFormDest.splice(idx, 1);
+        refreshAddFormDest();
+      });
+      populateDestDropdown($("staff-dest-add"), addFormDest);
+    }
+    refreshAddFormDest();
+    $("staff-dest-add").addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v && !addFormDest.includes(v)) {
+        addFormDest.push(v);
+        refreshAddFormDest();
+      }
+    });
+    $("staff-dest-clear").addEventListener("click", () => {
+      addFormDest = [];
+      refreshAddFormDest();
+    });
+
     async function addStaff() {
       const name = $("staff-name").value.trim();
       const phone = $("staff-phone").value.trim();
       const username = $("staff-username").value.trim().toLowerCase();
       const password = $("staff-password").value;
       const role = $("staff-role").value;
-      const destinations = $("staff-destinations").value
-        .split(/[,،]/).map(s => s.trim()).filter(Boolean);
+      const destinations = [...addFormDest];
       if (!name || !phone) { alert("املأ الاسم والجوال"); return; }
       if (password && password.length < 4) { alert("كلمة السر قصيرة جداً (4 أحرف على الأقل)"); return; }
       if (password && !username) { alert("اختاري اسم مستخدم لكلمة السر"); return; }
@@ -1072,7 +1166,8 @@
         $("staff-username").value = "";
         $("staff-password").value = "";
         $("staff-role").value = "sales";
-        $("staff-destinations").value = "";
+        addFormDest = [];
+        refreshAddFormDest();
         const roleLabel = role === "monitor" ? "👁️ مراقب" : "💼 مبيعات";
         const destLine = destinations.length
           ? `\nالوجهات: ${destinations.join("، ")}`
@@ -1082,22 +1177,56 @@
         refresh();
       } catch (e) { alert("فشل: " + e.message); }
     }
+
+    // ── Edit modal destinations state ───────────────────────────────────
+    let editDestPhone = null;
+    let editDestName = null;
+    let editDestList = [];
+    function refreshEditDest() {
+      renderDestChips($("dest-editor-chips"), editDestList, (idx) => {
+        editDestList.splice(idx, 1);
+        refreshEditDest();
+      });
+      populateDestDropdown($("dest-editor-add"), editDestList);
+    }
+    $("dest-editor-add").addEventListener("change", (e) => {
+      const v = e.target.value;
+      if (v && !editDestList.includes(v)) {
+        editDestList.push(v);
+        refreshEditDest();
+      }
+    });
+    $("dest-editor-clear").addEventListener("click", () => {
+      editDestList = [];
+      refreshEditDest();
+    });
+    $("dest-editor-cancel").addEventListener("click", () => {
+      $("dest-editor-overlay").style.display = "none";
+    });
+    $("dest-editor-save").addEventListener("click", async () => {
+      if (!editDestPhone) return;
+      try {
+        await callApi("upsert_staff", {
+          name: editDestName,
+          phone: editDestPhone,
+          destinations: [...editDestList],
+        });
+        $("dest-editor-overlay").style.display = "none";
+        refresh();
+      } catch (e) { alert("فشل: " + e.message); }
+    });
     async function deleteStaff(phone) {
       if (!confirm("احذف الموظف؟")) return;
       try { await callApi("delete_staff", { phone }); refresh(); }
       catch (e) { alert("فشل: " + e.message); }
     }
-    async function editStaffDestinations(phone, name, current) {
-      const input = prompt(
-        `وجهات ${name}\nاكتبيها مفصولة بفاصلة. اتركيها فاضية = كل الوجهات.\n\nمثال: ماليزيا، تركيا، عمان`,
-        current || ""
-      );
-      if (input === null) return;
-      const destinations = input.split(/[,،]/).map(s => s.trim()).filter(Boolean);
-      try {
-        await callApi("upsert_staff", { name, phone, destinations });
-        refresh();
-      } catch (e) { alert("فشل: " + e.message); }
+    function editStaffDestinations(phone, name, current) {
+      editDestPhone = phone;
+      editDestName = name;
+      editDestList = (current || "").split(/[,،]/).map(s => s.trim()).filter(Boolean);
+      $("dest-editor-name").textContent = name;
+      refreshEditDest();
+      $("dest-editor-overlay").style.display = "grid";
     }
     async function toggleStaffRole(phone, name, currentRole) {
       const nextRole = currentRole === "monitor" ? "sales" : "monitor";
