@@ -500,6 +500,12 @@
         <select id="filter-customer-select" class="filter-select"></select>
         <span class="filter-label">الحالة</span>
         <select id="filter-case-select" class="filter-select"></select>
+        <span class="filter-label">AI</span>
+        <select id="filter-ai-select" class="filter-select">
+          <option value="" selected>الكل</option>
+          <option value="on">🟢 شغال</option>
+          <option value="off">🔴 موقوف</option>
+        </select>
       </div>
       <div id="custom-range-row" style="display:none; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center;">
         <label style="font-size:13px; color:var(--muted); font-weight:700;">من</label>
@@ -1197,6 +1203,18 @@
     });
 
     let conversationsCache = [];
+    let filterAi = "";          // "" | "on" | "off"
+
+    // نفس منطق effective state اللي يستخدمه renderConversationRows.
+    // force_off_all → الكل موقوف. force_on_all → الكل شغال. وإلا
+    // override المحادثة يفوز، ثم العام.
+    function effectiveAi(c) {
+      if (aiForceOffAll) return false;
+      if (aiForceOnAll)  return true;
+      if (c.ai_enabled === true)  return true;
+      if (c.ai_enabled === false) return false;
+      return !!globalAiEnabled;
+    }
 
     function applyConversationsFilter() {
       const arr = conversationsCache.filter(c => {
@@ -1205,6 +1223,8 @@
         if (filterCase && c.case_type !== filterCase) return false;
         if (filterStaff === "__unassigned__" && c.assigned_staff_phone) return false;
         if (filterStaff && filterStaff !== "__unassigned__" && c.assigned_staff_phone !== filterStaff) return false;
+        if (filterAi === "on"  && !effectiveAi(c)) return false;
+        if (filterAi === "off" &&  effectiveAi(c)) return false;
         return true;
       });
       renderConversationRows(arr);
@@ -1830,6 +1850,19 @@
         refresh();
       } else if (filterFrom && filterTo) {
         refresh();
+      }
+    });
+    // dropdown حالة AI — لما تختاري 🟢/🔴 نوسّع الفترة تلقائياً إلى
+    // "الكل" عشان يشمل المحادثات القديمة والجديدة (طلب المستخدمة).
+    $("filter-ai-select").addEventListener("change", (e) => {
+      filterAi = e.target.value;
+      if (filterAi && filterRange !== "all" && filterRange !== "custom") {
+        filterRange = "all";
+        $("filter-range-select").value = "all";
+        $("custom-range-row").style.display = "none";
+        refresh();   // refresh() ثم renderConversations يستدعي applyConversationsFilter
+      } else {
+        applyConversationsFilter();
       }
     });
     $("custom-range-apply").addEventListener("click", () => {
