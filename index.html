@@ -439,7 +439,28 @@
 
     <!-- WhatsApp-style: latest conversations at the top of the main view -->
     <section style="margin-top:0;">
-      <h3>المحادثات النشطة (24h) <span class="badge" id="c-badge">0</span></h3>
+      <h3>المحادثات <span class="badge" id="c-badge">0</span></h3>
+      <!-- فلتر الفترة + رقم العميل (تحت العنوان مباشرة) -->
+      <div class="filter-bar" id="filter-range-bar" style="margin-bottom:8px;">
+        <span class="filter-label">الفترة</span>
+        <button class="filter-btn active" data-range="today">اليوم</button>
+        <button class="filter-btn" data-range="week">الأسبوع</button>
+        <button class="filter-btn" data-range="month">الشهر</button>
+        <button class="filter-btn" data-range="all">الكل</button>
+        <button class="filter-btn" data-range="custom">مخصّص</button>
+      </div>
+      <div id="custom-range-row" style="display:none; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center;">
+        <label style="font-size:13px; color:var(--muted); font-weight:700;">من</label>
+        <input type="date" id="filter-from" style="padding:6px; border:1px solid var(--border); border-radius:6px; font-weight:600;" />
+        <label style="font-size:13px; color:var(--muted); font-weight:700;">إلى</label>
+        <input type="date" id="filter-to" style="padding:6px; border:1px solid var(--border); border-radius:6px; font-weight:600;" />
+        <button class="filter-btn" id="custom-range-apply" style="background:var(--accent); color:white; border-color:var(--accent);">تطبيق</button>
+      </div>
+      <div class="filter-bar" style="margin-bottom:8px;">
+        <span class="filter-label">رقم العميل</span>
+        <input type="text" id="filter-phone-search" placeholder="بحث: أدخل رقم أو جزء من رقم العميل" style="flex:1; min-width:200px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-weight:600; font-family:inherit;" />
+        <button class="filter-btn" id="phone-search-clear" style="display:none;">✕ مسح</button>
+      </div>
       <div class="panel-list" id="conversations-list">
         <div class="empty">جاري التحميل…</div>
       </div>
@@ -637,6 +658,23 @@
   <script>
     const BASE = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router";
     const ENDPOINT = BASE + "?admin_action=dashboard_data";
+
+    // فلاتر الفترة + رقم العميل — تنطبق على قسم المحادثات.
+    // نبني URL ديناميكي ثم نمرّره لـ fetch داخل refresh().
+    let filterRange = "today";       // today | week | month | all | custom
+    let filterFrom = "";             // YYYY-MM-DD (custom only)
+    let filterTo = "";               // YYYY-MM-DD (custom only)
+    let filterCustomerPhone = "";
+    function buildDashboardUrl() {
+      const params = new URLSearchParams({ admin_action: "dashboard_data" });
+      if (filterRange && filterRange !== "today") params.set("range", filterRange);
+      if (filterRange === "custom") {
+        if (filterFrom) params.set("from", filterFrom);
+        if (filterTo) params.set("to", filterTo);
+      }
+      if (filterCustomerPhone) params.set("customer_phone", filterCustomerPhone);
+      return BASE + "?" + params.toString();
+    }
     const STORAGE_KEY = "alezz_dashboard_token";
     const ROLE_KEY = "alezz_dashboard_role";
     const USERNAME_KEY = "alezz_dashboard_username";
@@ -1621,7 +1659,7 @@
       if (!token) { showAuth(); return; }
       refreshBtn.disabled = true;
       try {
-        const res = await fetch(ENDPOINT, { headers: { Authorization: "Bearer " + token } });
+        const res = await fetch(buildDashboardUrl(), { headers: { Authorization: "Bearer " + token } });
         if (res.status === 401) { showAuth("التوكن خطأ"); return; }
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
@@ -1647,6 +1685,46 @@
     function stopAutoRefresh() {
       if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
     }
+
+    // أزرار الفترة
+    document.querySelectorAll('#filter-range-bar [data-range]').forEach(b => {
+      b.addEventListener("click", () => {
+        document.querySelectorAll('#filter-range-bar [data-range]').forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        filterRange = b.dataset.range;
+        $("custom-range-row").style.display = (filterRange === "custom") ? "flex" : "none";
+        // الفترات الجاهزة تعمل refresh فوراً، أما "مخصّص" ننتظر زر "تطبيق"
+        if (filterRange !== "custom") {
+          filterFrom = ""; filterTo = "";
+          refresh();
+        } else if (filterFrom && filterTo) {
+          refresh();
+        }
+      });
+    });
+    $("custom-range-apply").addEventListener("click", () => {
+      filterFrom = $("filter-from").value;
+      filterTo = $("filter-to").value;
+      if (!filterFrom || !filterTo) { alert("اختاري التاريخين"); return; }
+      refresh();
+    });
+    // بحث برقم العميل (debounced)
+    let phoneSearchTimer = null;
+    $("filter-phone-search").addEventListener("input", (e) => {
+      const v = e.target.value.trim();
+      $("phone-search-clear").style.display = v ? "" : "none";
+      clearTimeout(phoneSearchTimer);
+      phoneSearchTimer = setTimeout(() => {
+        filterCustomerPhone = v;
+        refresh();
+      }, 350);
+    });
+    $("phone-search-clear").addEventListener("click", () => {
+      $("filter-phone-search").value = "";
+      $("phone-search-clear").style.display = "none";
+      filterCustomerPhone = "";
+      refresh();
+    });
 
     if (!token) showAuth();
     else { refresh(); startAutoRefresh(); }
