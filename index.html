@@ -87,6 +87,33 @@
       content: "👤 وضع الموظفين · ";
       color: var(--accent); font-weight: 800;
     }
+
+    /* Admin tab bar — لفصل "إدارة المستخدمين" عن الشاشة الرئيسية.
+       Hidden whenever the body is in a non-admin role view. */
+    .tab-bar {
+      display: flex; gap: 8px; max-width: 1200px;
+      margin: 0 auto 18px; padding: 0 16px;
+    }
+    body.staff-mode .tab-bar,
+    body.monitor-mode .tab-bar { display: none; }
+    .tab-btn {
+      padding: 10px 18px; border: 1px solid var(--border);
+      background: white; border-radius: 10px; cursor: pointer;
+      font-weight: 800; font-family: inherit; color: var(--text);
+      font-size: 14px; transition: all 0.15s;
+    }
+    .tab-btn:hover { background: #f3f4f6; }
+    .tab-btn.active {
+      background: var(--accent); color: white;
+      border-color: var(--accent);
+    }
+    /* "إدارة المستخدمين" — hidden on the main tab, shown only when the
+       admin clicks into its tab. */
+    section.users-section { display: none; }
+    body.admin-users-tab section { display: none; }
+    body.admin-users-tab .ai-toggle-card { display: none; }
+    body.admin-users-tab section.users-section { display: block; }
+
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: "Tajawal", system-ui, sans-serif; font-weight: 700; }
     .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
@@ -381,6 +408,12 @@
       </div>
     </header>
 
+    <!-- Admin-only tab bar. Hidden in sales / monitor views. -->
+    <nav class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="main">📊 الرئيسية</button>
+      <button class="tab-btn" data-tab="users">👤 إدارة المستخدمين</button>
+    </nav>
+
     <div class="ai-toggle-card" id="ai-toggle-card">
       <div class="ai-toggle-info">
         <h2 id="ai-toggle-label">⏳ تحميل…</h2>
@@ -400,7 +433,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="users-section">
       <h3>الموظفون <span class="badge" id="s-badge">0</span></h3>
       <div class="panel-list" id="staff-list">
         <div class="empty">جاري التحميل…</div>
@@ -744,8 +777,18 @@
       btn.addEventListener("click", () => {
         if (!token) { showAuth(); return; }
         const r = btn.dataset.roleSwitch;
+        document.body.classList.remove("admin-users-tab");
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === "main"));
         setSession(token, r);
         refresh();
+      });
+    });
+    // Admin tab bar — toggle "الرئيسية" vs "إدارة المستخدمين"
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        document.body.classList.toggle("admin-users-tab", btn.dataset.tab === "users");
       });
     });
     function devEnter(role) {
