@@ -2212,11 +2212,14 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
-        const msg = data.sent_to_customer
-          ? "✓ تم الإرسال للعميل"
-          : "✓ تم الحفظ — لم يُرسل للعميل (وضع المعاينة)";
-        // optional: small visual ack instead of alert. كاف الـ refresh أدناه.
-        console.log(msg);
+        // Optional: small status — refresh() يكفي للسلوك الأساسي
+        const parts = [];
+        if (data.sent_to_customer) parts.push("✓ تم الإرسال للعميل");
+        else parts.push("✓ تم الحفظ — لم يُرسل (وضع المعاينة)");
+        if (data.save_outcome === "saved") parts.push("📚 حفظت في FAQ");
+        else if (data.save_outcome === "skipped_already_in_faq") parts.push("📚 موجود أصلاً في FAQ");
+        else if (data.save_outcome === "save_failed") parts.push("⚠️ ما قدرت أحفظ FAQ");
+        console.log(parts.join(" · "));
         refresh();
       } catch (e) {
         alert("فشل: " + e.message);
