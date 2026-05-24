@@ -366,7 +366,15 @@
           <p>نظرة عامة على حالة النظام ومكوناته</p>
         </div>
       </div>
-      <div style="display:flex; gap:10px; align-items:center;">
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div id="dev-bypass-banner" style="display:none; background:#fef3c7; color:#92400e; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:700; border:1px solid #fde68a;">
+          🧪 وضع اختبار — دخول بدون كلمة سر
+        </div>
+        <div style="display:flex; gap:4px;">
+          <button class="refresh-btn" data-role-switch="admin" title="عرض الإدمن">🛡️</button>
+          <button class="refresh-btn" data-role-switch="sales" title="عرض المبيعات">💼</button>
+          <button class="refresh-btn" data-role-switch="monitor" title="عرض المراقبين">👁️</button>
+        </div>
         <button class="refresh-btn" id="refresh">↻ تحديث</button>
         <button class="refresh-btn" id="logout" title="تسجيل خروج (مسح التوكن)">🔐</button>
         <div class="last-updated">آخر تحديث: <span id="now">—</span></div>
@@ -723,12 +731,42 @@
       $("auth-password").value = "";
       setTimeout(() => (lastUser ? $("auth-password") : $("auth-username")).focus(), 60);
     }
-    $("role-admin").addEventListener("click", showAuthAdmin);
+    // 🧪 DEV BYPASS — once a token exists in localStorage, the three role
+    // buttons skip the JWT/password form and just flip the body class.
+    // Re-enable password gating later by setting DEV_BYPASS = false.
+    const DEV_BYPASS = true;
+    if (DEV_BYPASS) {
+      const banner = document.getElementById("dev-bypass-banner");
+      if (banner) banner.style.display = "";
+    }
+    // In-header role switcher — flip views without re-logging in
+    document.querySelectorAll("[data-role-switch]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (!token) { showAuth(); return; }
+        const r = btn.dataset.roleSwitch;
+        setSession(token, r);
+        refresh();
+      });
+    });
+    function devEnter(role) {
+      if (!DEV_BYPASS || !token) return false;
+      setSession(token, role);
+      hideAuth();
+      refresh();
+      startAutoRefresh();
+      return true;
+    }
+    $("role-admin").addEventListener("click", () => {
+      if (devEnter("admin")) return;
+      showAuthAdmin();
+    });
     $("role-sales").addEventListener("click", () => {
+      if (devEnter("sales")) return;
       showAuthSales();
       $("auth-title").textContent = "💼 دخول المبيعات";
     });
     $("role-monitor").addEventListener("click", () => {
+      if (devEnter("monitor")) return;
       showAuthSales();   // same form (username + password)
       $("auth-title").textContent = "👁️ دخول المراقبين";
       $("auth-help").textContent = "أدخل اسم المستخدم وكلمة المرور.";
