@@ -51,6 +51,10 @@
     /* "حسابي" (change-own-password) appears only in staff mode. */
     section:has(#account-form) { display: none; }
     body.staff-mode section:has(#account-form) { display: block; }
+    /* Per-staff conversation filter — admin only. Staff see their own
+       conversations once we add scoping; for now this bar is hidden in
+       staff mode. */
+    body.staff-mode .admin-only-filter { display: none; }
     body.staff-mode .last-updated::before {
       content: "👤 وضع الموظفين · ";
       color: var(--accent); font-weight: 800;
@@ -380,6 +384,9 @@
       <button class="filter-urgent" id="filter-urgent" data-active="false">
         🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
       </button>
+      <div class="filter-bar admin-only-filter" id="filter-staff-bar">
+        <span class="filter-label">الموظف</span>
+      </div>
       <div class="filter-bar" id="filter-customer-bar">
         <span class="filter-label">العميل</span>
       </div>
@@ -674,6 +681,12 @@
 
     function renderStaff(arr) {
       staffList = arr;
+      // If the staff we're filtering by got deleted, drop the filter.
+      if (filterStaff && filterStaff !== "" && filterStaff !== "__unassigned__"
+          && !staffList.find(s => s.phone === filterStaff)) {
+        filterStaff = "";
+      }
+      renderStaffFilterBar();
       $("s-badge").textContent = arr.length;
       const list = $("staff-list");
       const form = list.querySelector("#staff-form");
@@ -830,9 +843,43 @@
         if (filterUrgent && c.priority !== "URGENT") return false;
         if (filterCustomer && c.customer_type !== filterCustomer) return false;
         if (filterCase && c.case_type !== filterCase) return false;
+        if (filterStaff === "__unassigned__" && c.assigned_staff_phone) return false;
+        if (filterStaff && filterStaff !== "__unassigned__" && c.assigned_staff_phone !== filterStaff) return false;
         return true;
       });
       renderConversationRows(arr);
+      renderStaffFilterCounts();
+    }
+
+    function renderStaffFilterBar() {
+      const bar = $("filter-staff-bar");
+      // Drop everything after the label, then rebuild.
+      while (bar.children.length > 1) bar.removeChild(bar.lastChild);
+      const allBtn = `<button class="filter-btn" data-kind="staff" data-value="">الكل <span class="cnt">0</span></button>`;
+      const staffBtns = staffList.map(s =>
+        `<button class="filter-btn" data-kind="staff" data-value="${escapeHtml(s.phone)}">${escapeHtml(s.name)} <span class="cnt">0</span></button>`
+      ).join("");
+      const unassignedBtn = `<button class="filter-btn" data-kind="staff" data-value="__unassigned__">غير معيّن <span class="cnt">0</span></button>`;
+      bar.insertAdjacentHTML("beforeend", allBtn + staffBtns + unassignedBtn);
+      bar.querySelectorAll('.filter-btn[data-kind="staff"]').forEach(b => {
+        b.addEventListener("click", () => {
+          filterStaff = b.dataset.value;
+          applyConversationsFilter();
+        });
+      });
+      renderStaffFilterCounts();
+    }
+    function renderStaffFilterCounts() {
+      document.querySelectorAll('.filter-btn[data-kind="staff"]').forEach(b => {
+        const val = b.dataset.value;
+        let count;
+        if (val === "") count = conversationsCache.length;
+        else if (val === "__unassigned__") count = conversationsCache.filter(c => !c.assigned_staff_phone).length;
+        else count = conversationsCache.filter(c => c.assigned_staff_phone === val).length;
+        const cntEl = b.querySelector(".cnt");
+        if (cntEl) cntEl.textContent = count;
+        b.classList.toggle("active", val === filterStaff);
+      });
     }
 
     function renderConversations(arr) {
@@ -956,6 +1003,7 @@
     let filterCustomer = "";    // "" = all
     let filterCase = "";        // "" = all
     let filterUrgent = false;
+    let filterStaff = "";       // "" = all, "__unassigned__" = no assignee, else staff phone
 
     function buildFilterBars() {
       // Idempotent: build buttons once, then re-bind/re-style on each refresh.
