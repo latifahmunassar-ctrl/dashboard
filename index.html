@@ -48,6 +48,9 @@
     body.staff-mode section:has(#rules-list) {
       display: none;
     }
+    /* "حسابي" (change-own-password) appears only in staff mode. */
+    section:has(#account-form) { display: none; }
+    body.staff-mode section:has(#account-form) { display: block; }
     body.staff-mode .last-updated::before {
       content: "👤 وضع الموظفين · ";
       color: var(--accent); font-weight: 800;
@@ -386,6 +389,17 @@
     </section>
 
     <section>
+      <h3>حسابي</h3>
+      <div class="panel-list">
+        <div class="form-row" id="account-form">
+          <input id="account-current" type="password" placeholder="كلمة السر الحالية" autocomplete="current-password" />
+          <input id="account-new" type="password" placeholder="كلمة السر الجديدة (4+ أحرف)" autocomplete="new-password" />
+          <button id="account-save">حفظ</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
       <h3>المحادثات النشطة (24h) <span class="badge" id="c-badge">0</span></h3>
       <div class="panel-list" id="conversations-list">
         <div class="empty">جاري التحميل…</div>
@@ -670,16 +684,21 @@
             <span class="dot ${s.active ? 'ok' : 'muted'}"></span>
             <div class="label-text">
               <span class="primary">${escapeHtml(s.name)}</span>
-              <span class="secondary">${escapeHtml(fmtPhone(s.phone))}</span>
+              <span class="secondary">${escapeHtml(fmtPhone(s.phone))}${s.username ? " · @" + escapeHtml(s.username) : ""}</span>
             </div>
           </div>
-          <button class="toggle-btn off" data-action="staff-delete" data-phone="${escapeHtml(s.phone)}" style="min-width:auto;padding:6px 10px">حذف</button>
+          <div style="display:flex; gap:6px;">
+            <button class="toggle-btn" data-action="staff-password" data-phone="${escapeHtml(s.phone)}" data-username="${escapeHtml(s.username || '')}" style="min-width:auto;padding:6px 10px" title="ضبط كلمة السر">🔑 كلمة سر</button>
+            <button class="toggle-btn off" data-action="staff-delete" data-phone="${escapeHtml(s.phone)}" style="min-width:auto;padding:6px 10px">حذف</button>
+          </div>
         </div>`).join("");
       list.innerHTML = (rows || '<div class="empty">ولا موظف مسجّل</div>') + form.outerHTML;
       // Re-bind form
       $("staff-add").addEventListener("click", addStaff);
       list.querySelectorAll('[data-action=staff-delete]').forEach(b =>
         b.addEventListener("click", () => deleteStaff(b.dataset.phone)));
+      list.querySelectorAll('[data-action=staff-password]').forEach(b =>
+        b.addEventListener("click", () => setStaffPassword(b.dataset.phone, b.dataset.username)));
       // Populate the rule-staff dropdown too
       const ruleSel = $("rule-staff");
       ruleSel.innerHTML = '<option value="">— اختر موظف —</option>' +
@@ -701,6 +720,30 @@
       try { await callApi("delete_staff", { phone }); refresh(); }
       catch (e) { alert("فشل: " + e.message); }
     }
+    async function setStaffPassword(phone, currentUsername) {
+      const username = prompt("اسم المستخدم (بالإنجليزي):", currentUsername || "");
+      if (!username) return;
+      const password = prompt("كلمة السر الجديدة (4 أحرف على الأقل):");
+      if (!password || password.length < 4) { alert("كلمة السر قصيرة جداً"); return; }
+      try {
+        await callApi("staff_set_password", { phone, username: username.trim().toLowerCase(), password });
+        alert("تم ضبط كلمة السر للموظف ✓\n" + "اسم المستخدم: " + username);
+        refresh();
+      } catch (e) { alert("فشل: " + e.message); }
+    }
+
+    // "حسابي" — staff self-service password change
+    $("account-save").addEventListener("click", async () => {
+      const current = $("account-current").value;
+      const next = $("account-new").value;
+      if (!current || next.length < 4) { alert("أدخل كلمة السر الحالية وكلمة سر جديدة (4 أحرف+)"); return; }
+      try {
+        await callApi("staff_change_password", { current_password: current, new_password: next });
+        $("account-current").value = "";
+        $("account-new").value = "";
+        alert("تم تغيير كلمة السر ✓\nستحتاج تسجيل الدخول من جديد على الأجهزة الأخرى.");
+      } catch (e) { alert("فشل: " + e.message); }
+    });
 
     function renderRules(arr) {
       $("r-badge").textContent = arr.length;
