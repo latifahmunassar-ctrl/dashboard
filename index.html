@@ -109,8 +109,10 @@
       text-overflow: ellipsis;
       max-width: 100%;
     }
-    /* Dedicated assigned-staff line — مهم للمراقبين */
-    .conv-assigned {
+    /* Dedicated assigned-staff line — يظهر فقط في وضع المراقب
+       (الإدمن لازال يشوف نفس البادج في السطر الفرعي). */
+    .conv-assigned { display: none; }
+    body.monitor-mode .conv-assigned {
       display: block;
       margin: 2px 0;
       font-size: 12px;
@@ -121,7 +123,7 @@
       border-radius: 8px;
       width: fit-content;
     }
-    .conv-assigned.unassigned {
+    body.monitor-mode .conv-assigned.unassigned {
       color: #92400e;
       background: #fef3c7;
     }
@@ -1367,8 +1369,9 @@
         const previewLine = previewTrunc
           ? `<span class="conv-preview">💬 ${escapeHtml(previewTrunc)}</span>`
           : "";
-        // Dedicated assigned-staff line — مطلوب للمراقبين عشان يعرفون
-        // مين المسؤول عن كل عميل قبل ما يفتحون المحادثة.
+        // Dedicated assigned-staff line — مطلوب للمراقبين فقط (CSS أدناه
+        // يخفيه في وضع الإدمن/المبيعات). الإدمن لازال يشوف نفس الـ
+        // assignedBadge في السطر الفرعي كما كان.
         const assignedLine = c.assigned_staff_phone
           ? `<span class="conv-assigned">👤 المسؤول: ${escapeHtml(staffNameFor(c.assigned_staff_phone))}${c.assigned_by ? " (" + escapeHtml(c.assigned_by === "auto" ? "تلقائي" : "نقل") + ")" : ""}</span>`
           : `<span class="conv-assigned unassigned">👤 غير معيّن — يحتاج تخصيص موظف</span>`;
@@ -1380,7 +1383,7 @@
                 <span class="primary">${escapeHtml(c.profile_name || ph)}</span>
                 ${previewLine}
                 ${assignedLine}
-                <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}${destBadge}</span>
+                <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}${destBadge}${assignedBadge}</span>
                 ${tags.length ? `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${tags.join("")}</div>` : ""}
               </div>
             </div>
