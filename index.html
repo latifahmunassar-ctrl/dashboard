@@ -160,6 +160,15 @@
       border-radius: 8px; color: #0f172a; font-weight: 800; cursor: pointer; font-family: inherit;
     }
     .auth-error { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 1em; }
+    .role-btn {
+      display: block; width: 100%; padding: 14px 18px; margin-bottom: 10px;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 800;
+      cursor: pointer; text-align: right;
+    }
+    .role-btn:hover { background: var(--border); }
+    .role-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+    .role-btn.disabled:hover { background: var(--panel-2); }
 
     /* Conversation modal */
     .conv-card {
@@ -470,10 +479,18 @@
 
   <div class="auth-overlay" id="auth-overlay" style="display:none;">
     <div class="auth-card">
-      <h2 id="auth-title">🔐 تسجيل دخول الموظفين</h2>
-      <p id="auth-help">أدخل اسم المستخدم وكلمة المرور.</p>
+      <h2 id="auth-title">🔐 تسجيل الدخول</h2>
+      <p id="auth-help">اختر نوع المستخدم</p>
 
-      <div id="auth-staff-mode">
+      <!-- Role picker — first screen, three buttons -->
+      <div id="auth-picker">
+        <button class="role-btn" id="role-admin">🛡️  الإدمن</button>
+        <button class="role-btn" id="role-sales">💼  المبيعات</button>
+        <button class="role-btn disabled" id="role-monitor" disabled>👁️  المراقبين — قريباً</button>
+      </div>
+
+      <!-- Sales form (was "staff") -->
+      <div id="auth-staff-mode" style="display:none;">
         <input id="auth-username" type="text" placeholder="اسم المستخدم" autocomplete="username" autocapitalize="off" />
         <div style="height:8px"></div>
         <div style="position:relative;">
@@ -485,18 +502,19 @@
           <input id="auth-remember" type="checkbox" style="width:auto; margin:0;" />
           <span>تذكّرني (دخول تلقائي لمدة 30 يوم)</span>
         </label>
-        <button id="auth-staff-submit" style="margin-top:10px;">دخول</button>
+        <button id="auth-staff-submit" style="margin-top:10px;">دخول المبيعات</button>
         <div style="text-align:center; margin-top:10px;">
-          <a href="#" id="auth-toggle-admin" style="font-size:12px;">دخول الـ admin بالتوكن الرئيسي</a>
+          <a href="#" class="auth-back" style="font-size:12px;">↩️ رجوع</a>
         </div>
       </div>
 
+      <!-- Admin form -->
       <div id="auth-admin-mode" style="display:none;">
         <p style="margin:0 0 8px; font-size:12px; color:var(--muted);">الصق LEGACY_ANON_JWT</p>
         <input id="auth-input" type="password" placeholder="eyJhbGc..." autocomplete="off" />
-        <button id="auth-submit">دخول</button>
+        <button id="auth-submit">دخول الإدمن</button>
         <div style="text-align:center; margin-top:10px;">
-          <a href="#" id="auth-toggle-staff" style="font-size:12px;">↩️ رجوع لدخول الموظفين</a>
+          <a href="#" class="auth-back" style="font-size:12px;">↩️ رجوع</a>
         </div>
       </div>
 
@@ -566,16 +584,9 @@
 
     function showAuth(msg) {
       overlay.style.display = "grid";
-      authError.textContent = msg || "";
-      // Pre-fill the username from the last successful login so the
-      // operator only needs to retype the password.
-      const lastUser = localStorage.getItem(USERNAME_KEY) || "";
-      if ($("auth-username")) $("auth-username").value = lastUser;
-      if ($("auth-password")) $("auth-password").value = "";
-      setTimeout(() => {
-        if (lastUser && $("auth-password")) $("auth-password").focus();
-        else if ($("auth-username")) $("auth-username").focus();
-      }, 60);
+      // Always start at the role picker — admin / sales / monitor.
+      showAuthPicker();
+      if (msg) authError.textContent = msg;
     }
     function hideAuth() { overlay.style.display = "none"; authError.textContent = ""; }
 
@@ -622,20 +633,41 @@
     $("auth-username").addEventListener("keydown", (e) => {
       if (e.key === "Enter") $("auth-password").focus();
     });
-    $("auth-toggle-admin").addEventListener("click", (e) => {
-      e.preventDefault();
+    // Role picker — three-way entry on the initial auth screen.
+    function showAuthPicker() {
+      $("auth-picker").style.display = "";
+      $("auth-staff-mode").style.display = "none";
+      $("auth-admin-mode").style.display = "none";
+      $("auth-title").textContent = "🔐 تسجيل الدخول";
+      $("auth-help").textContent = "اختر نوع المستخدم";
+      authError.textContent = "";
+    }
+    function showAuthAdmin() {
+      $("auth-picker").style.display = "none";
       $("auth-staff-mode").style.display = "none";
       $("auth-admin-mode").style.display = "";
-      $("auth-title").textContent = "🔐 دخول الـ Admin";
+      $("auth-title").textContent = "🛡️ دخول الإدمن";
+      $("auth-help").textContent = "الصق LEGACY_ANON_JWT للوصول الكامل.";
       authError.textContent = "";
-    });
-    $("auth-toggle-staff").addEventListener("click", (e) => {
-      e.preventDefault();
+      setTimeout(() => $("auth-input").focus(), 60);
+    }
+    function showAuthSales() {
+      $("auth-picker").style.display = "none";
       $("auth-staff-mode").style.display = "";
       $("auth-admin-mode").style.display = "none";
-      $("auth-title").textContent = "🔐 تسجيل دخول الموظفين";
+      $("auth-title").textContent = "💼 دخول المبيعات";
+      $("auth-help").textContent = "أدخل اسم المستخدم وكلمة المرور.";
       authError.textContent = "";
-    });
+      const lastUser = localStorage.getItem(USERNAME_KEY) || "";
+      $("auth-username").value = lastUser;
+      $("auth-password").value = "";
+      setTimeout(() => (lastUser ? $("auth-password") : $("auth-username")).focus(), 60);
+    }
+    $("role-admin").addEventListener("click", showAuthAdmin);
+    $("role-sales").addEventListener("click", showAuthSales);
+    // المراقبين لسه ما اتبنى — الزر معطّل ولا يفعل شي
+    document.querySelectorAll(".auth-back").forEach(a =>
+      a.addEventListener("click", (e) => { e.preventDefault(); showAuthPicker(); }));
 
     authSubmit.addEventListener("click", () => {
       const _admin_t_ = authInput.value.replace(/\s+/g, "");
