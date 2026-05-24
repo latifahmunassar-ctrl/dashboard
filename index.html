@@ -1981,6 +1981,12 @@
     }
     function renderProposalRows(arr) {
       const list = $("proposals-list");
+      // لا تعيد الرسم إذا الادمن حالياً يحرّر رد proposal — كان يسبب
+      // فقدان focus وتمرير الصفحة لتحت كل ٣ ثوان. الرسم يستأنف بمجرد
+      // ما الادمن يضغط حفظ/إلغاء/موافق على الصف.
+      const editing = Array.from(list.querySelectorAll(".proposal-correct"))
+        .some(el => el.style.display !== "none");
+      if (editing) return;
       if (!arr.length) {
         list.innerHTML = '<div class="empty">✅ ولا proposal مطابق للفلتر الحالي</div>';
         return;
