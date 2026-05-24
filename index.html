@@ -1994,30 +1994,35 @@
       list.innerHTML = arr.map((p) => {
         const cat = [p.proposed_intent, p.proposed_sub_intent].filter(Boolean).join(" / ");
         const isUrgent = p.priority === "URGENT";
-        // CRM classification badges
-        const tags = [];
-        if (isUrgent) tags.push(`<span class="pill urgent">${escapeHtml(p.priority_label || "URGENT 🚨")}</span>`);
-        if (p.customer_type) {
-          const ct = p.customer_type;
-          const cls =
-            ct === "VIP_CUSTOMER" ? "tag-vip" :
-            ct === "CORPORATE_BUSINESS" ? "tag-corporate" :
-            ct === "PARTNERSHIP" ? "tag-partnership" :
-            ct === "REPEAT_CUSTOMER" ? "tag-repeat" :
-            "tag-new";
-          tags.push(`<span class="pill ${cls}">${escapeHtml(ct)}</span>`);
-        }
-        if (p.case_type) {
-          const cls = p.case_type === "COMPLAINT" ? "tag-complaint"
-            : p.case_type.startsWith("BOOKING") ? "tag-booking" : "tag-case";
-          tags.push(`<span class="pill ${cls}">${escapeHtml(p.case_type)}</span>`);
-        }
-        if (p.complaint_type) tags.push(`<span class="pill tag-complaint">${escapeHtml(p.complaint_type)}</span>`);
-        if (p.booking_status && p.booking_status !== "NONE") {
-          tags.push(`<span class="pill tag-booking">booking:${escapeHtml(p.booking_status)}</span>`);
-        }
-        const stageEmoji = ({INQUIRY:"🔍",OFFER_SENT:"💼",BOOKING_IN_PROGRESS:"📋",BOOKING_CONFIRMED:"✅",TRAVELING:"✈️",POST_TRAVEL:"🔄"})[p.customer_stage] || "🔍";
-        const stagePill = `<span class="pill tag-case">${stageEmoji} ${escapeHtml(p.customer_stage || "INQUIRY")}</span>`;
+        // Editable classification selects — تستبدل الـ pills بحيث الادمن
+        // تقدر تصحّح تصنيف الـ AI لو غلط.
+        const stageVal = p.customer_stage || "INQUIRY";
+        const stageOpts = [
+          ["INQUIRY","🔍 INQUIRY"], ["OFFER_SENT","💼 OFFER_SENT"],
+          ["BOOKING_IN_PROGRESS","📋 BOOKING_IN_PROGRESS"], ["BOOKING_CONFIRMED","✅ BOOKING_CONFIRMED"],
+          ["TRAVELING","✈️ TRAVELING"], ["POST_TRAVEL","🔄 POST_TRAVEL"],
+        ];
+        const custVal = p.customer_type || "";
+        const custOpts = ["NEW_CUSTOMER","REPEAT_CUSTOMER","VIP_CUSTOMER","CORPORATE_BUSINESS","PARTNERSHIP"];
+        const caseVal = p.case_type || "";
+        const caseOpts = ["INQUIRY","BOOKING_REQUEST","BOOKING_CONFIRMED","COMPLAINT","CANCELLATION","MODIFICATION"];
+        const complaintVal = p.complaint_type || "";
+        const complaintOpts = ["PAYMENT_ISSUE","HOTEL_ISSUE","FLIGHT_ISSUE","SERVICE_ISSUE","DELAY_RESPONSE","GENERAL_DISSATISFACTION"];
+        const mkSelect = (field, value, options, withLabels) => {
+          const opts = options.map(o => {
+            const [val, lbl] = Array.isArray(o) ? o : [o, o];
+            const sel = val === value ? " selected" : "";
+            return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(lbl)}</option>`;
+          }).join("");
+          return `<select class="proposal-class" data-class-field="${field}" data-id="${escapeHtml(p.id)}" style="padding:3px 8px; border:1px solid #d1d5db; border-radius:8px; font-family:inherit; font-weight:700; font-size:11px; background:white;">${opts}</select>`;
+        };
+        const editableTags = [
+          isUrgent ? `<span class="pill urgent">${escapeHtml(p.priority_label || "URGENT 🚨")}</span>` : "",
+          mkSelect("customer_stage", stageVal, stageOpts),
+          custVal ? mkSelect("customer_type", custVal, custOpts) : "",
+          caseVal ? mkSelect("case_type", caseVal, caseOpts) : "",
+          (caseVal === "COMPLAINT" || complaintVal) ? mkSelect("complaint_type", complaintVal || "PAYMENT_ISSUE", complaintOpts) : "",
+        ].filter(Boolean).join("");
         const interp = (p.interpretation || "").trim();
         const reply  = (p.suggested_reply || "").trim();
         return `
@@ -2028,7 +2033,7 @@
                 <div style="font-size:11px; font-weight:800; color:#0f766e; margin-bottom:2px;">📩 سؤال العميل</div>
                 <span class="primary" style="font-weight:800;">${escapeHtml(p.customer_question)}</span>
                 <span class="secondary">${escapeHtml(p.customer_profile_name || "")} (${escapeHtml(fmtPhone(p.customer_phone))})${cat ? " · " + escapeHtml(cat) : ""}</span>
-                <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${stagePill}${tags.join("")}</div>
+                <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">${editableTags}</div>
                 ${interp ? `
                   <div style="margin-top:8px; padding:8px; background:#f0fdfa; border-right:3px solid #14b8a6; border-radius:6px;">
                     <div style="font-size:11px; font-weight:800; color:#0f766e; margin-bottom:2px;">🧠 فهمت من العميل</div>
@@ -2059,6 +2064,29 @@
             </div>
           </div>`;
       }).join("");
+      // Bind classification edit dropdowns
+      list.querySelectorAll(".proposal-class").forEach((sel) => {
+        sel.addEventListener("change", async (e) => {
+          e.stopPropagation();
+          const id = sel.dataset.id;
+          const field = sel.dataset.classField;
+          const value = sel.value;
+          sel.disabled = true;
+          try {
+            const res = await fetch(BASE + "?admin_action=proposal_update", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+              body: JSON.stringify({ proposal_id: id, [field]: value }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+          } catch (err) {
+            alert("فشل: " + err.message);
+          } finally {
+            sel.disabled = false;
+          }
+        });
+      });
       // Bind proposal action buttons
       list.querySelectorAll("[data-proposal-action]").forEach((b) => {
         b.addEventListener("click", (e) => {
