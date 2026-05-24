@@ -60,6 +60,12 @@
     body.monitor-mode section:has(#account-form) {
       display: none;
     }
+    /* في وضع المراقب: قسم الشكاوى قبل قسم المحادثات */
+    body.monitor-mode .container {
+      display: flex;
+      flex-direction: column;
+    }
+    body.monitor-mode section:has(#complaints-list) { order: -1; }
     /* Hide the staff-assignment filter chip and per-row inline AI toggles
        inside the conversations panel for monitors — they shouldn't be
        re-assigning conversations or flipping the bot. Replies stay open
@@ -1246,6 +1252,13 @@
     }
 
     function applyConversationsFilter() {
+      // المراقب يشوف فقط المحادثات اللي عليها شكوى — جلب arr من الـ
+      // complaintsCache (احتمال يكون فاضي لو لسه ما تحمّل). تحديث الـ
+      // complaints لاحقاً يستدعي applyConversationsFilter() مرة ثانية.
+      const isMonitor = document.body.classList.contains("monitor-mode");
+      const complaintPhones = isMonitor
+        ? new Set(complaintsCache.map(c => c.customer_phone))
+        : null;
       const arr = conversationsCache.filter(c => {
         if (filterUrgent && c.priority !== "URGENT") return false;
         if (filterCustomer && c.customer_type !== filterCustomer) return false;
@@ -1254,6 +1267,7 @@
         if (filterStaff && filterStaff !== "__unassigned__" && c.assigned_staff_phone !== filterStaff) return false;
         if (filterAi === "on"  && !effectiveAi(c)) return false;
         if (filterAi === "off" &&  effectiveAi(c)) return false;
+        if (complaintPhones && !complaintPhones.has(c.phone)) return false;
         return true;
       });
       renderConversationRows(arr);
@@ -1324,7 +1338,9 @@
       const list = $("conversations-list");
       $("c-badge").textContent = arr.length;
       if (!arr.length) {
-        list.innerHTML = '<div class="empty">ما في محادثات مطابقة</div>';
+        list.innerHTML = document.body.classList.contains("monitor-mode")
+          ? '<div class="empty">ولا محادثة عليها شكوى</div>'
+          : '<div class="empty">ما في محادثات مطابقة</div>';
         return;
       }
       list.innerHTML = arr.map((c) => {
@@ -1466,6 +1482,11 @@
         const data = await res.json();
         complaintsCache = data.complaints || [];
         renderComplaints();
+        // وضع المراقب يقصر المحادثات على اللي عليها شكوى — أعد تطبيق
+        // الفلتر بعد ما تحمّل الـ complaints قائمة جديدة.
+        if (document.body.classList.contains("monitor-mode") && conversationsCache.length) {
+          applyConversationsFilter();
+        }
       } catch (e) {
         $("complaints-list").innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
       }
