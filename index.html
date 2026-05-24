@@ -88,6 +88,21 @@
       color: var(--accent); font-weight: 800;
     }
 
+    /* WhatsApp-style preview: latest customer message under each
+       conversation row's primary name. */
+    .conv-preview {
+      display: block;
+      margin: 4px 0 2px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
     /* Admin tab bar — لفصل "إدارة المستخدمين" عن الشاشة الرئيسية.
        Hidden whenever the body is in a non-admin role view. */
     .tab-bar {
@@ -422,7 +437,15 @@
       <button class="big-toggle" id="ai-toggle-btn" disabled>—</button>
     </div>
 
+    <!-- WhatsApp-style: latest conversations at the top of the main view -->
     <section style="margin-top:0;">
+      <h3>المحادثات النشطة (24h) <span class="badge" id="c-badge">0</span></h3>
+      <div class="panel-list" id="conversations-list">
+        <div class="empty">جاري التحميل…</div>
+      </div>
+    </section>
+
+    <section>
       <h3>أرقام اليوم</h3>
       <div class="grid cols-5">
         <div class="card"><h2>الرسائل اليوم</h2><div class="value" id="m-today">—</div></div>
@@ -487,13 +510,6 @@
           <input id="account-new" type="password" placeholder="كلمة السر الجديدة (4+ أحرف)" autocomplete="new-password" />
           <button id="account-save">حفظ</button>
         </div>
-      </div>
-    </section>
-
-    <section>
-      <h3>المحادثات النشطة (24h) <span class="badge" id="c-badge">0</span></h3>
-      <div class="panel-list" id="conversations-list">
-        <div class="empty">جاري التحميل…</div>
       </div>
     </section>
 
@@ -1139,12 +1155,19 @@
           tags.push(`<span class="pill ${cls3}">${escapeHtml(c.case_type)}</span>`);
         }
         const urgentRow = c.priority === "URGENT" ? " urgent-row" : "";
+        // WhatsApp-style preview line — latest inbound message body
+        const previewRaw = (c.last_message_body || "").trim();
+        const previewTrunc = previewRaw.length > 90 ? previewRaw.slice(0, 90) + "…" : previewRaw;
+        const previewLine = previewTrunc
+          ? `<span class="conv-preview">💬 ${escapeHtml(previewTrunc)}</span>`
+          : "";
         return `
           <div class="row${urgentRow}" data-phone="${escapeHtml(c.phone)}">
             <div class="label conv-clickable" data-action="open-conv" data-phone="${escapeHtml(c.phone)}" data-name="${escapeHtml(c.profile_name || ph)}">
               <span class="dot ${dotCls}"></span>
               <div class="label-text">
                 <span class="primary">${escapeHtml(c.profile_name || ph)}</span>
+                ${previewLine}
                 <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}${destBadge}${assignedBadge}</span>
                 ${tags.length ? `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${tags.join("")}</div>` : ""}
               </div>
