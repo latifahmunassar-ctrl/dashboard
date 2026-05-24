@@ -381,6 +381,12 @@
       font-size: 11px; font-weight: 700; min-width: 18px; text-align: center;
     }
     .filter-btn.active .cnt { background: rgba(255,255,255,.25); }
+    .filter-select {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+      background: white; font-family: inherit; font-weight: 700; font-size: 13px;
+      cursor: pointer; min-width: 160px; color: var(--text);
+    }
+    .filter-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
     .filter-urgent {
       background: var(--panel-2); border: 1px solid rgba(239,68,68,.4); color: var(--err);
       padding: 10px 16px; border-radius: 999px; font-family: inherit;
@@ -440,14 +446,22 @@
     <!-- WhatsApp-style: latest conversations at the top of the main view -->
     <section style="margin-top:0;">
       <h3>المحادثات <span class="badge" id="c-badge">0</span></h3>
-      <!-- فلتر الفترة + رقم العميل (تحت العنوان مباشرة) -->
-      <div class="filter-bar" id="filter-range-bar" style="margin-bottom:8px;">
+      <!-- شريط الفلاتر — كل الفلاتر droplist لتوفير المساحة -->
+      <div class="filter-bar" style="margin-bottom:8px; flex-wrap:wrap;">
         <span class="filter-label">الفترة</span>
-        <button class="filter-btn active" data-range="today">اليوم</button>
-        <button class="filter-btn" data-range="week">الأسبوع</button>
-        <button class="filter-btn" data-range="month">الشهر</button>
-        <button class="filter-btn" data-range="all">الكل</button>
-        <button class="filter-btn" data-range="custom">مخصّص</button>
+        <select id="filter-range-select" class="filter-select">
+          <option value="today" selected>اليوم</option>
+          <option value="week">الأسبوع</option>
+          <option value="month">الشهر</option>
+          <option value="all">الكل</option>
+          <option value="custom">مخصّص</option>
+        </select>
+        <span class="filter-label admin-only-filter" id="filter-staff-bar">الموظف</span>
+        <select id="filter-staff-select" class="filter-select admin-only-filter"></select>
+        <span class="filter-label">العميل</span>
+        <select id="filter-customer-select" class="filter-select"></select>
+        <span class="filter-label">الحالة</span>
+        <select id="filter-case-select" class="filter-select"></select>
       </div>
       <div id="custom-range-row" style="display:none; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center;">
         <label style="font-size:13px; color:var(--muted); font-weight:700;">من</label>
@@ -460,15 +474,6 @@
         <span class="filter-label">رقم العميل</span>
         <input type="text" id="filter-phone-search" placeholder="بحث: أدخل رقم أو جزء من رقم العميل" style="flex:1; min-width:200px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-weight:600; font-family:inherit;" />
         <button class="filter-btn" id="phone-search-clear" style="display:none;">✕ مسح</button>
-      </div>
-      <div class="filter-bar admin-only-filter" id="filter-staff-bar" style="margin-bottom:8px;">
-        <span class="filter-label">الموظف</span>
-      </div>
-      <div class="filter-bar" id="filter-customer-bar" style="margin-bottom:8px;">
-        <span class="filter-label">العميل</span>
-      </div>
-      <div class="filter-bar" id="filter-case-bar" style="margin-bottom:8px;">
-        <span class="filter-label">الحالة</span>
       </div>
       <button class="filter-urgent" id="filter-urgent" data-active="false" style="margin-bottom:10px;">
         🚨 عرض العاجلة فقط <span class="cnt" id="urgent-cnt">0</span>
@@ -1114,24 +1119,48 @@
     }
 
     function renderStaffFilterBar() {
-      const bar = $("filter-staff-bar");
-      // Drop everything after the label, then rebuild.
-      while (bar.children.length > 1) bar.removeChild(bar.lastChild);
-      const allBtn = `<button class="filter-btn" data-kind="staff" data-value="">الكل <span class="cnt">0</span></button>`;
-      const staffBtns = staffList.map(s =>
-        `<button class="filter-btn" data-kind="staff" data-value="${escapeHtml(s.phone)}">${escapeHtml(s.name)} <span class="cnt">0</span></button>`
-      ).join("");
-      const unassignedBtn = `<button class="filter-btn" data-kind="staff" data-value="__unassigned__">غير معيّن <span class="cnt">0</span></button>`;
-      bar.insertAdjacentHTML("beforeend", allBtn + staffBtns + unassignedBtn);
-      bar.querySelectorAll('.filter-btn[data-kind="staff"]').forEach(b => {
-        b.addEventListener("click", () => {
-          filterStaff = b.dataset.value;
+      const sel = $("filter-staff-select");
+      // Build options once (or when staffList shape changed); counts get
+      // refreshed each render via renderStaffFilterCounts.
+      const desiredKeys = ["", ...staffList.map(s => s.phone), "__unassigned__"];
+      const haveKeys = [...sel.options].map(o => o.value);
+      const same = desiredKeys.length === haveKeys.length && desiredKeys.every((k, i) => k === haveKeys[i]);
+      if (!same) {
+        sel.innerHTML = "";
+        const add = (val, label) => {
+          const o = document.createElement("option");
+          o.value = val; o.textContent = label;
+          sel.appendChild(o);
+        };
+        add("", "الكل");
+        staffList.forEach(s => add(s.phone, s.name));
+        add("__unassigned__", "غير معيّن");
+        sel.addEventListener("change", (e) => {
+          filterStaff = e.target.value;
           applyConversationsFilter();
         });
-      });
+      }
+      sel.value = filterStaff || "";
       renderStaffFilterCounts();
     }
     function renderStaffFilterCounts() {
+      const sel = $("filter-staff-select");
+      if (!sel) return;
+      [...sel.options].forEach(o => {
+        const val = o.value;
+        let count;
+        if (val === "") count = conversationsCache.length;
+        else if (val === "__unassigned__") count = conversationsCache.filter(c => !c.assigned_staff_phone).length;
+        else count = conversationsCache.filter(c => c.assigned_staff_phone === val).length;
+        const baseLabel = val === ""
+          ? "الكل"
+          : val === "__unassigned__"
+            ? "غير معيّن"
+            : (staffList.find(s => s.phone === val)?.name || val);
+        o.textContent = `${baseLabel} (${count})`;
+      });
+      sel.value = filterStaff || "";
+      // Old chip-button counts (none now) — keep no-op for compatibility.
       document.querySelectorAll('.filter-btn[data-kind="staff"]').forEach(b => {
         const val = b.dataset.value;
         let count;
@@ -1394,22 +1423,27 @@
     let filterStaff = "";       // "" = all, "__unassigned__" = no assignee, else staff phone
 
     function buildFilterBars() {
-      // Idempotent: build buttons once, then re-bind/re-style on each refresh.
-      const custBar = $("filter-customer-bar");
-      const caseBar = $("filter-case-bar");
-      if (custBar.querySelectorAll(".filter-btn").length === 0) {
-        const cBtns = [`<button class="filter-btn" data-kind="customer" data-value="">الكل <span class="cnt">0</span></button>`]
-          .concat(CUSTOMER_TYPES.map(t => `<button class="filter-btn" data-kind="customer" data-value="${t}">${t} <span class="cnt">0</span></button>`));
-        custBar.insertAdjacentHTML("beforeend", cBtns.join(""));
-        const sBtns = [`<button class="filter-btn" data-kind="case" data-value="">الكل <span class="cnt">0</span></button>`]
-          .concat(CASE_TYPES.map(t => `<button class="filter-btn" data-kind="case" data-value="${t}">${t} <span class="cnt">0</span></button>`));
-        caseBar.insertAdjacentHTML("beforeend", sBtns.join(""));
-        document.querySelectorAll(".filter-btn").forEach(b => {
-          b.addEventListener("click", () => {
-            if (b.dataset.kind === "customer") filterCustomer = b.dataset.value;
-            else filterCase = b.dataset.value;
-            applyProposalFilters();
-          });
+      // Idempotent: populate the customer/case dropdowns once. Counts get
+      // refreshed on every applyProposalFilters() call.
+      const custSel = $("filter-customer-select");
+      const caseSel = $("filter-case-select");
+      if (custSel.options.length === 0) {
+        const add = (sel, val, label) => {
+          const o = document.createElement("option");
+          o.value = val; o.textContent = label;
+          sel.appendChild(o);
+        };
+        add(custSel, "", "الكل");
+        CUSTOMER_TYPES.forEach(t => add(custSel, t, t));
+        add(caseSel, "", "الكل");
+        CASE_TYPES.forEach(t => add(caseSel, t, t));
+        custSel.addEventListener("change", (e) => {
+          filterCustomer = e.target.value;
+          applyProposalFilters();
+        });
+        caseSel.addEventListener("change", (e) => {
+          filterCase = e.target.value;
+          applyProposalFilters();
         });
         $("filter-urgent").addEventListener("click", () => {
           filterUrgent = !filterUrgent;
@@ -1541,22 +1575,31 @@
     });
 
     function applyProposalFilters() {
-      // Counts merge proposals AND conversations so each pill reflects how
-      // many real items would match across both panels.
+      // Counts merge proposals AND conversations so each option reflects
+      // how many real items would match across both panels.
       const pool = [...proposalsCache, ...conversationsCache];
       const custCounts = { "": pool.length };
       CUSTOMER_TYPES.forEach(t => { custCounts[t] = pool.filter(p => p.customer_type === t).length; });
       const caseCounts = { "": pool.length };
       CASE_TYPES.forEach(t => { caseCounts[t] = pool.filter(p => p.case_type === t).length; });
       const urgentCnt = pool.filter(p => p.priority === "URGENT").length;
-      document.querySelectorAll('.filter-btn[data-kind="customer"]').forEach(b => {
-        b.querySelector(".cnt").textContent = custCounts[b.dataset.value] ?? 0;
-        b.classList.toggle("active", b.dataset.value === filterCustomer);
-      });
-      document.querySelectorAll('.filter-btn[data-kind="case"]').forEach(b => {
-        b.querySelector(".cnt").textContent = caseCounts[b.dataset.value] ?? 0;
-        b.classList.toggle("active", b.dataset.value === filterCase);
-      });
+      // Refresh dropdown option labels with counts: "VIP_CUSTOMER (5)"
+      const custSel = $("filter-customer-select");
+      const caseSel = $("filter-case-select");
+      if (custSel) {
+        [...custSel.options].forEach(o => {
+          const base = o.value === "" ? "الكل" : o.value;
+          o.textContent = `${base} (${custCounts[o.value] ?? 0})`;
+        });
+        custSel.value = filterCustomer || "";
+      }
+      if (caseSel) {
+        [...caseSel.options].forEach(o => {
+          const base = o.value === "" ? "الكل" : o.value;
+          o.textContent = `${base} (${caseCounts[o.value] ?? 0})`;
+        });
+        caseSel.value = filterCase || "";
+      }
       $("urgent-cnt").textContent = urgentCnt;
       $("filter-urgent").classList.toggle("active", filterUrgent);
 
@@ -1682,21 +1725,16 @@
       if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
     }
 
-    // أزرار الفترة
-    document.querySelectorAll('#filter-range-bar [data-range]').forEach(b => {
-      b.addEventListener("click", () => {
-        document.querySelectorAll('#filter-range-bar [data-range]').forEach(x => x.classList.remove("active"));
-        b.classList.add("active");
-        filterRange = b.dataset.range;
-        $("custom-range-row").style.display = (filterRange === "custom") ? "flex" : "none";
-        // الفترات الجاهزة تعمل refresh فوراً، أما "مخصّص" ننتظر زر "تطبيق"
-        if (filterRange !== "custom") {
-          filterFrom = ""; filterTo = "";
-          refresh();
-        } else if (filterFrom && filterTo) {
-          refresh();
-        }
-      });
+    // dropdown الفترة
+    $("filter-range-select").addEventListener("change", (e) => {
+      filterRange = e.target.value;
+      $("custom-range-row").style.display = (filterRange === "custom") ? "flex" : "none";
+      if (filterRange !== "custom") {
+        filterFrom = ""; filterTo = "";
+        refresh();
+      } else if (filterFrom && filterTo) {
+        refresh();
+      }
     });
     $("custom-range-apply").addEventListener("click", () => {
       filterFrom = $("filter-from").value;
