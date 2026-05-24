@@ -407,6 +407,21 @@
       background: linear-gradient(90deg, rgba(239,68,68,.10) 0%, transparent 70%);
       border-right: 3px solid var(--err);
     }
+    /* محادثة بانتظار الرد — لون مميّز في كل الداش بوردات */
+    .panel-list .row.unanswered-row {
+      background: linear-gradient(90deg, rgba(245,158,11,.14) 0%, transparent 75%);
+      border-right: 3px solid #f59e0b;
+    }
+    /* عاجلة + بانتظار رد = الأحمر يطغى لكن الحدّ ينقسم */
+    .panel-list .row.urgent-row.unanswered-row {
+      background: linear-gradient(90deg, rgba(239,68,68,.14) 0%, rgba(245,158,11,.08) 60%, transparent 100%);
+      border-right: 4px double var(--err);
+    }
+    .panel-list .row.unanswered-row .primary::before {
+      content: "⏳ ";
+      color: #b45309;
+      font-weight: 800;
+    }
 
     .filter-bar {
       display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
@@ -1529,6 +1544,11 @@
           tags.push(`<span class="pill ${cls3}">${escapeHtml(c.case_type)}</span>`);
         }
         const urgentRow = c.priority === "URGENT" ? " urgent-row" : "";
+        // محادثة "بانتظار الرد": آخر رسالة inbound من العميل ولا فيه
+        // outbound بعدها (أو ما فيه outbound أصلاً).
+        const lastIn = c.last_inbound_at ? new Date(c.last_inbound_at).getTime() : 0;
+        const lastOut = c.last_outbound_at ? new Date(c.last_outbound_at).getTime() : 0;
+        const unansweredRow = lastIn > 0 && lastOut < lastIn ? " unanswered-row" : "";
         // WhatsApp-style preview line — latest inbound message body
         const previewRaw = (c.last_message_body || "").trim();
         const previewTrunc = previewRaw.length > 90 ? previewRaw.slice(0, 90) + "…" : previewRaw;
@@ -1542,7 +1562,7 @@
           ? `<span class="conv-assigned">👤 المسؤول: ${escapeHtml(staffNameFor(c.assigned_staff_phone))}${c.assigned_by ? " (" + escapeHtml(c.assigned_by === "auto" ? "تلقائي" : "نقل") + ")" : ""}</span>`
           : `<span class="conv-assigned unassigned">👤 غير معيّن — يحتاج تخصيص موظف</span>`;
         return `
-          <div class="row${urgentRow}" data-phone="${escapeHtml(c.phone)}">
+          <div class="row${urgentRow}${unansweredRow}" data-phone="${escapeHtml(c.phone)}">
             <div class="label conv-clickable" data-action="open-conv" data-phone="${escapeHtml(c.phone)}" data-name="${escapeHtml(c.profile_name || ph)}">
               <span class="dot ${dotCls}"></span>
               <div class="label-text">
