@@ -396,9 +396,15 @@
       <h3>الموظفون <span class="badge" id="s-badge">0</span></h3>
       <div class="panel-list" id="staff-list">
         <div class="empty">جاري التحميل…</div>
-        <div class="form-row" id="staff-form">
+        <div class="form-row" id="staff-form" style="flex-wrap:wrap; gap:8px;">
           <input id="staff-name" placeholder="الاسم (مثل: طلال)" />
           <input id="staff-phone" placeholder="الجوال (+968…)" />
+          <input id="staff-username" placeholder="اسم المستخدم (اختياري)" />
+          <input id="staff-password" type="password" placeholder="كلمة السر (اختياري، 4 أحرف+)" />
+          <select id="staff-role" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-weight:600;">
+            <option value="sales">💼 موظف مبيعات</option>
+            <option value="monitor">👁️ مراقب</option>
+          </select>
           <button id="staff-add">إضافة</button>
         </div>
       </div>
@@ -784,20 +790,26 @@
       const list = $("staff-list");
       const form = list.querySelector("#staff-form");
       // Build header rows
-      const rows = arr.map(s => `
+      const rows = arr.map(s => {
+        const roleBadge = s.role === "monitor"
+          ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">👁️ مراقب</span>'
+          : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">💼 مبيعات</span>';
+        return `
         <div class="row">
           <div class="label">
             <span class="dot ${s.active ? 'ok' : 'muted'}"></span>
             <div class="label-text">
-              <span class="primary">${escapeHtml(s.name)}</span>
+              <span class="primary">${escapeHtml(s.name)} ${roleBadge}</span>
               <span class="secondary">${escapeHtml(fmtPhone(s.phone))}${s.username ? " · @" + escapeHtml(s.username) : ""}</span>
             </div>
           </div>
           <div style="display:flex; gap:6px;">
+            <button class="toggle-btn" data-action="staff-role" data-phone="${escapeHtml(s.phone)}" data-name="${escapeHtml(s.name)}" data-role="${escapeHtml(s.role || 'sales')}" style="min-width:auto;padding:6px 10px" title="تغيير الدور">🔄 دور</button>
             <button class="toggle-btn" data-action="staff-password" data-phone="${escapeHtml(s.phone)}" data-username="${escapeHtml(s.username || '')}" style="min-width:auto;padding:6px 10px" title="ضبط كلمة السر">🔑 كلمة سر</button>
             <button class="toggle-btn off" data-action="staff-delete" data-phone="${escapeHtml(s.phone)}" style="min-width:auto;padding:6px 10px">حذف</button>
           </div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
       list.innerHTML = (rows || '<div class="empty">ولا موظف مسجّل</div>') + form.outerHTML;
       // Re-bind form
       $("staff-add").addEventListener("click", addStaff);
@@ -805,6 +817,8 @@
         b.addEventListener("click", () => deleteStaff(b.dataset.phone)));
       list.querySelectorAll('[data-action=staff-password]').forEach(b =>
         b.addEventListener("click", () => setStaffPassword(b.dataset.phone, b.dataset.username)));
+      list.querySelectorAll('[data-action=staff-role]').forEach(b =>
+        b.addEventListener("click", () => toggleStaffRole(b.dataset.phone, b.dataset.name, b.dataset.role)));
       // Populate the rule-staff dropdown too
       const ruleSel = $("rule-staff");
       ruleSel.innerHTML = '<option value="">— اختر موظف —</option>' +
@@ -814,10 +828,25 @@
     async function addStaff() {
       const name = $("staff-name").value.trim();
       const phone = $("staff-phone").value.trim();
+      const username = $("staff-username").value.trim().toLowerCase();
+      const password = $("staff-password").value;
+      const role = $("staff-role").value;
       if (!name || !phone) { alert("املأ الاسم والجوال"); return; }
+      if (password && password.length < 4) { alert("كلمة السر قصيرة جداً (4 أحرف على الأقل)"); return; }
+      if (password && !username) { alert("اختاري اسم مستخدم لكلمة السر"); return; }
       try {
-        await callApi("upsert_staff", { name, phone });
-        $("staff-name").value = ""; $("staff-phone").value = "";
+        await callApi("upsert_staff", { name, phone, role });
+        if (username && password) {
+          await callApi("staff_set_password", { phone, username, password });
+        }
+        $("staff-name").value = "";
+        $("staff-phone").value = "";
+        $("staff-username").value = "";
+        $("staff-password").value = "";
+        $("staff-role").value = "sales";
+        const roleLabel = role === "monitor" ? "👁️ مراقب" : "💼 مبيعات";
+        const credLine = (username && password) ? `\nاسم المستخدم: ${username}\nكلمة السر: ${password}` : "";
+        alert(`تمت إضافة الموظف ✓\nالدور: ${roleLabel}${credLine}`);
         refresh();
       } catch (e) { alert("فشل: " + e.message); }
     }
@@ -825,6 +854,15 @@
       if (!confirm("احذف الموظف؟")) return;
       try { await callApi("delete_staff", { phone }); refresh(); }
       catch (e) { alert("فشل: " + e.message); }
+    }
+    async function toggleStaffRole(phone, name, currentRole) {
+      const nextRole = currentRole === "monitor" ? "sales" : "monitor";
+      const label = nextRole === "monitor" ? "👁️ مراقب" : "💼 مبيعات";
+      if (!confirm(`تغيير دور ${name} إلى ${label}؟`)) return;
+      try {
+        await callApi("upsert_staff", { name, phone, role: nextRole });
+        refresh();
+      } catch (e) { alert("فشل: " + e.message); }
     }
     async function setStaffPassword(phone, currentUsername) {
       const username = prompt("اسم المستخدم (بالإنجليزي):", currentUsername || "");
