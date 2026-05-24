@@ -51,17 +51,24 @@
     /* "حسابي" (change-own-password) appears only in staff mode. */
     section:has(#account-form) { display: none; }
     body.staff-mode section:has(#account-form) { display: block; }
-    /* Monitor mode — only the complaints panel + stats are visible.
-       Everything else gets hidden. */
+    /* Monitor mode — complaints + conversations (read+reply) + stats.
+       Admin-only management UI stays hidden. */
     body.monitor-mode .ai-toggle-card,
     body.monitor-mode section:has(#staff-list),
     body.monitor-mode section:has(#rules-list),
-    body.monitor-mode section:has(#filter-customer-bar),
-    body.monitor-mode section:has(#conversations-list),
     body.monitor-mode section:has(#proposals-list),
     body.monitor-mode section:has(#account-form) {
       display: none;
     }
+    /* Hide the staff-assignment filter chip and per-row inline AI toggles
+       inside the conversations panel for monitors — they shouldn't be
+       re-assigning conversations or flipping the bot. Replies stay open
+       via the conversation modal. */
+    body.monitor-mode #filter-staff-bar,
+    body.monitor-mode #filter-staff-select,
+    body.monitor-mode .assign-control[data-action=transfer],
+    body.monitor-mode [data-action=toggle],
+    body.monitor-mode [data-action=reset] { display: none; }
     /* Complaints section is hidden in plain admin/sales view by default;
        made visible to admin too so they can see the same queue as
        monitors. */
