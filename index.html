@@ -363,6 +363,7 @@
       font-family: inherit; min-width: 70px;
     }
     .toggle-btn.off { background: var(--err); }
+    .toggle-btn.preview { background: #f59e0b; color: white; }
     .toggle-btn.inherit { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
     .toggle-btn:disabled { opacity: 0.6; cursor: wait; }
 
@@ -1365,8 +1366,9 @@
     // force_off_all → الكل موقوف. force_on_all → الكل شغال. وإلا
     // override المحادثة يفوز، ثم العام.
     function effectiveAi(c) {
-      if (aiForceOffAll) return false;
-      if (aiForceOnAll)  return true;
+      // PREVIEW + OFF لا يرسلان للعميل أبداً — يعتبر "موقوف" بصرياً.
+      if (aiMode === "OFF") return false;
+      if (aiMode === "PREVIEW") return false;
       if (c.ai_enabled === true)  return true;
       if (c.ai_enabled === false) return false;
       return !!globalAiEnabled;
@@ -1481,15 +1483,25 @@
         const inherit = c.ai_enabled === null || c.ai_enabled === undefined;
         // Effective state: force flags trump everything; otherwise explicit
         // per-conversation override wins, then global.
-        const effective = aiForceOffAll ? false
-          : aiForceOnAll ? true
-          : (inherit ? globalAiEnabled : c.ai_enabled);
-        const dotCls = effective ? "ok" : "err";
-        // Button color + text reflect the EFFECTIVE state, so when admin
-        // picks "الكل" every row mirrors the global state immediately.
-        // The reset (↺) button still flips the underlying override.
-        const cls = effective ? "" : "off";
-        const txt = effective ? `🟢 شغال` : `🔴 موقوف`;
+        // الزر يعكس ما اللي يصل العميل فعلياً:
+        //   mode=PREVIEW → كل المحادثات معاينة (لا إرسال تلقائي)
+        //   mode=OFF     → كل المحادثات موقوفة
+        //   mode=ON      → per-conv override أو global
+        let effective, cls, txt;
+        if (aiMode === "PREVIEW") {
+          effective = false;       // العميل لا يحصل رد تلقائي
+          cls = "preview";
+          txt = "👁️ معاينة";
+        } else if (aiMode === "OFF") {
+          effective = false;
+          cls = "off";
+          txt = "🔴 موقوف";
+        } else {
+          effective = (inherit ? globalAiEnabled : c.ai_enabled);
+          cls = effective ? "" : "off";
+          txt = effective ? "🟢 شغال" : "🔴 موقوف";
+        }
+        const dotCls = effective ? "ok" : (aiMode === "PREVIEW" ? "warn" : "err");
         const destBadge = c.destination ? ` · ${escapeHtml(c.destination)}` : "";
         const assignedBadge = c.assigned_staff_phone
           ? ` · 👤 ${escapeHtml(staffNameFor(c.assigned_staff_phone))}${c.assigned_by ? " (" + escapeHtml(c.assigned_by === "auto" ? "تلقائي" : "نقل") + ")" : ""}`
