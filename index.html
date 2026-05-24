@@ -443,7 +443,7 @@
       <button class="big-toggle" id="ai-toggle-btn" disabled>—</button>
     </div>
 
-    <!-- Stop-mode picker — يظهر فقط لما الادمن يبي يوقف الـ AI -->
+    <!-- Stop-mode picker — يظهر لما الادمن يبي يوقف الـ AI -->
     <div class="auth-overlay" id="ai-stop-overlay" style="display:none;">
       <div class="auth-card" style="text-align:right;">
         <h2 style="margin-top:0;">🔴 إيقاف الذكاء الاصطناعي</h2>
@@ -458,6 +458,25 @@
             <div style="font-weight:600; font-size:12px; opacity:0.9; margin-top:4px;">يظل شغّال للمحادثات اللي فعّلتيها يدوياً (🟢)</div>
           </button>
           <button id="ai-stop-cancel" style="padding:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">إلغاء</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Start-mode picker — يظهر لما الادمن يبي يشغل الـ AI -->
+    <div class="auth-overlay" id="ai-start-overlay" style="display:none;">
+      <div class="auth-card" style="text-align:right;">
+        <h2 style="margin-top:0;">🟢 تشغيل الذكاء الاصطناعي</h2>
+        <p style="color:var(--muted); font-size:14px; margin-bottom:18px;">اختاري نوع التشغيل:</p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <button id="ai-start-all" style="padding:14px; background:var(--ok); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-family:inherit; font-size:14px; text-align:right;">
+            🟢 تشغيل الكل
+            <div style="font-weight:600; font-size:12px; opacity:0.9; margin-top:4px;">يشغّل الذكاء الاصطناعي لكل المحادثات دون استثناء</div>
+          </button>
+          <button id="ai-start-except" style="padding:14px; background:#3b82f6; color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-family:inherit; font-size:14px; text-align:right;">
+            ℹ️ تشغيل الكل عدا المخصصين
+            <div style="font-weight:600; font-size:12px; opacity:0.9; margin-top:4px;">يظل موقوف للمحادثات اللي أوقفتيها يدوياً (🔴)</div>
+          </button>
+          <button id="ai-start-cancel" style="padding:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">إلغاء</button>
         </div>
       </div>
     </div>
@@ -1098,17 +1117,23 @@
     }
 
     let aiForceOffAll = false;
-    function renderGlobalToggle(enabled, forceOffAll) {
+    let aiForceOnAll = false;
+    function renderGlobalToggle(enabled, forceOffAll, forceOnAll) {
       globalAiEnabled = enabled;
       aiForceOffAll = !!forceOffAll;
+      aiForceOnAll  = !!forceOnAll;
       const card = $("ai-toggle-card");
       const label = $("ai-toggle-label");
       const sub = $("ai-toggle-sub");
       const btn = $("ai-toggle-btn");
       card.className = "ai-toggle-card " + (enabled ? "on" : "off");
       if (enabled) {
-        label.textContent = "🟢 AI شغال";
-        sub.textContent = "البوت يرد تلقائياً على المحادثات (إلا المحادثات الموقوفة يدوياً).";
+        label.textContent = aiForceOnAll
+          ? "🟢 AI شغال (الكل)"
+          : "🟢 AI شغال (عدا المخصصين)";
+        sub.textContent = aiForceOnAll
+          ? "كل المحادثات شغّالة — حتى الموقوفة يدوياً."
+          : "البوت شغّال، لكن المحادثات اللي أوقفتيها يدوياً (🔴) تظل موقوفة.";
         btn.textContent = "إيقاف";
         btn.className = "big-toggle";
       } else {
@@ -1116,19 +1141,21 @@
           ? "🔴 AI موقوف (الكل)"
           : "🔴 AI موقوف (عدا المخصصين)";
         sub.textContent = aiForceOffAll
-          ? "كل المحادثات موقوفة — حتى الـ overrides اليدوية."
+          ? "كل المحادثات موقوفة — حتى المفعّلة يدوياً."
           : "البوت موقوف، لكن المحادثات اللي مفعّلتيها يدوياً (🟢) تظل شغّالة.";
         btn.textContent = "تشغيل";
         btn.className = "big-toggle off";
       }
       btn.disabled = false;
     }
-    async function setGlobalAi(enabled, forceOffAll) {
+    async function setGlobalAi(enabled, opts) {
       const btn = $("ai-toggle-btn");
       btn.disabled = true;
+      const force_off_all = !enabled && !!(opts && opts.forceAll);
+      const force_on_all  =  enabled && !!(opts && opts.forceAll);
       try {
-        await callApi("set_global_ai", { enabled, force_off_all: !!forceOffAll });
-        renderGlobalToggle(enabled, enabled ? false : !!forceOffAll);
+        await callApi("set_global_ai", { enabled, force_off_all, force_on_all });
+        renderGlobalToggle(enabled, force_off_all, force_on_all);
         refresh();
       } catch (e) {
         alert("فشل: " + e.message);
@@ -1137,23 +1164,36 @@
     }
     $("ai-toggle-btn").addEventListener("click", () => {
       if (globalAiEnabled) {
-        // Stopping → ask which kind of stop
+        // ON → stopping. Ask which kind of stop.
         $("ai-stop-overlay").style.display = "grid";
       } else {
-        // Already off → turn back on (clears force_off_all)
-        setGlobalAi(true, false);
+        // OFF → starting. Ask which kind of start.
+        $("ai-start-overlay").style.display = "grid";
       }
     });
+    // Stop options
     $("ai-stop-all").addEventListener("click", () => {
       $("ai-stop-overlay").style.display = "none";
-      setGlobalAi(false, true);
+      setGlobalAi(false, { forceAll: true });
     });
     $("ai-stop-except").addEventListener("click", () => {
       $("ai-stop-overlay").style.display = "none";
-      setGlobalAi(false, false);
+      setGlobalAi(false, { forceAll: false });
     });
     $("ai-stop-cancel").addEventListener("click", () => {
       $("ai-stop-overlay").style.display = "none";
+    });
+    // Start options
+    $("ai-start-all").addEventListener("click", () => {
+      $("ai-start-overlay").style.display = "none";
+      setGlobalAi(true, { forceAll: true });
+    });
+    $("ai-start-except").addEventListener("click", () => {
+      $("ai-start-overlay").style.display = "none";
+      setGlobalAi(true, { forceAll: false });
+    });
+    $("ai-start-cancel").addEventListener("click", () => {
+      $("ai-start-overlay").style.display = "none";
     });
 
     let conversationsCache = [];
@@ -1241,9 +1281,12 @@
       list.innerHTML = arr.map((c) => {
         const ph = fmtPhone(c.phone);
         const inherit = c.ai_enabled === null || c.ai_enabled === undefined;
-        // Effective state: force_off_all silences everything, otherwise
-        // explicit per-conversation override wins, then global.
-        const effective = aiForceOffAll ? false : (inherit ? globalAiEnabled : c.ai_enabled);
+        // Effective state: force_off_all silences everything; force_on_all
+        // forces everything on; otherwise explicit per-conversation
+        // override wins, then global.
+        const effective = aiForceOffAll ? false
+          : aiForceOnAll ? true
+          : (inherit ? globalAiEnabled : c.ai_enabled);
         const cls = inherit ? "inherit" : (c.ai_enabled ? "" : "off");
         const txt = inherit
           ? `⚪ موروث`
@@ -1757,7 +1800,7 @@
         if (res.status === 401) { showAuth("التوكن خطأ"); return; }
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-        renderGlobalToggle(!!data.global_ai_enabled, !!data.ai_force_off_all);
+        renderGlobalToggle(!!data.global_ai_enabled, !!data.ai_force_off_all, !!data.ai_force_on_all);
         renderCounts(data.counts || {});
         renderStaff(data.staff || []);
         renderRules(data.routing_rules || []);
