@@ -1814,6 +1814,35 @@
       convInflight.set(phone, p);
       return p;
     }
+    // Polling the modal: every 4s while it's open, re-fetch the Twilio
+    // history so messages the customer sends mid-conversation appear
+    // without the admin having to close + reopen.
+    let convModalTimer = null;
+    let convLastItemsCount = 0;
+    function startConvPolling() {
+      stopConvPolling();
+      convModalTimer = setInterval(pollConvHistory, 4000);
+    }
+    function stopConvPolling() {
+      if (convModalTimer) { clearInterval(convModalTimer); convModalTimer = null; }
+    }
+    async function pollConvHistory() {
+      if (!convPhone) return;
+      if ($("conv-overlay").style.display === "none") { stopConvPolling(); return; }
+      try {
+        // Reuse the prefetch dedup helper so multiple opens of the same
+        // conversation don't pile up parallel requests.
+        const items = await prefetchConversation(convPhone);
+        if (!items) return;
+        if (!convPhone || $("conv-overlay").style.display === "none") return;
+        // Skip the DOM re-render when nothing changed — keeps the user's
+        // scroll/selection state stable.
+        if (items.length !== convLastItemsCount) {
+          convLastItemsCount = items.length;
+          renderConvBody(items);
+        }
+      } catch (_) { /* silent — next tick retries */ }
+    }
     async function openConversation(phone, name) {
       convPhone = phone;
       $("conv-title").textContent = name;
@@ -1823,10 +1852,15 @@
       const cached = convHistoryCache.get(phone);
       if (cached) {
         renderConvBody(cached);   // instant paint from cache
+        convLastItemsCount = cached.length;
       } else {
         $("conv-body").textContent = "جاري التحميل…";
+        convLastItemsCount = 0;
       }
       await loadConversationHistory();
+      const fresh = convHistoryCache.get(convPhone);
+      if (fresh) convLastItemsCount = fresh.length;
+      startConvPolling();
     }
     async function loadConversationHistory() {
       if (!convPhone) return;
@@ -1846,6 +1880,7 @@
       const body = $("conv-body");
       if (!items.length) {
         body.innerHTML = '<div class="empty">ولا رسالة بعد</div>';
+        convLastItemsCount = 0;
         return;
       }
       body.innerHTML = items.map(m => `
@@ -1854,12 +1889,14 @@
           <div class="bubble">${escapeHtml(m.body)}</div>
           <div class="meta">${fmtTime(m.ts)}</div>
         </div>`).join("");
+      convLastItemsCount = items.length;
       // Scroll to bottom
       body.scrollTop = body.scrollHeight;
     }
     $("conv-close").addEventListener("click", () => {
       $("conv-overlay").style.display = "none";
       convPhone = "";
+      stopConvPolling();
     });
     // Enter يرسل، Shift+Enter ينزل سطر جديد
     $("conv-input").addEventListener("keydown", (e) => {
