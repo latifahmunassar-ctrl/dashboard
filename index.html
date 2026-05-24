@@ -2015,7 +2015,7 @@
         const interp = (p.interpretation || "").trim();
         const reply  = (p.suggested_reply || "").trim();
         return `
-          <div class="row${isUrgent ? ' urgent-row' : ''}">
+          <div class="row${isUrgent ? ' urgent-row' : ''}" data-proposal-id="${escapeHtml(p.id)}">
             <div class="label">
               <span class="dot ${isUrgent ? 'err' : 'warn'}"></span>
               <div class="label-text" style="flex:1;">
@@ -2033,6 +2033,18 @@
                     <div style="font-size:11px; font-weight:800; color:#92400e; margin-bottom:2px;">💡 الرد المقترح</div>
                     <div style="font-size:13px; color:#78350f; font-weight:600; white-space:pre-wrap;">${escapeHtml(reply)}</div>
                   </div>` : ""}
+                <!-- زرّا القرار + خانة التصحيح (مخفية افتراضياً) -->
+                <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                  <button class="toggle-btn" data-proposal-action="approve" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px;">✅ موافق — أرسل</button>
+                  <button class="toggle-btn off" data-proposal-action="reject" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px;">✏️ تعديل الرد</button>
+                </div>
+                <div class="proposal-correct" data-correct-for="${escapeHtml(p.id)}" style="display:none; margin-top:8px;">
+                  <textarea class="proposal-correct-text" rows="3" placeholder="اكتبي الرد الصحيح للعميل…" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-family:inherit; font-weight:600; font-size:13px; resize:vertical;"></textarea>
+                  <div style="margin-top:6px; display:flex; gap:6px;">
+                    <button class="toggle-btn" data-proposal-action="submit-correction" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:6px 12px;">💾 حفظ + إرسال</button>
+                    <button class="toggle-btn inherit" data-proposal-action="cancel-correction" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:6px 12px;">إلغاء</button>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="meta">
@@ -2041,6 +2053,55 @@
             </div>
           </div>`;
       }).join("");
+      // Bind proposal action buttons
+      list.querySelectorAll("[data-proposal-action]").forEach((b) => {
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const action = b.dataset.proposalAction;
+          const id = b.dataset.id;
+          if (action === "approve") return decideProposal(id, "approve", null, b);
+          if (action === "reject") {
+            // إظهار خانة التصحيح
+            const box = list.querySelector(`[data-correct-for="${CSS.escape(id)}"]`);
+            if (box) { box.style.display = ""; box.querySelector("textarea").focus(); }
+            return;
+          }
+          if (action === "submit-correction") {
+            const box = list.querySelector(`[data-correct-for="${CSS.escape(id)}"]`);
+            const txt = box.querySelector("textarea").value.trim();
+            if (!txt) { alert("اكتبي الرد قبل الحفظ"); return; }
+            return decideProposal(id, "correct", txt, b);
+          }
+          if (action === "cancel-correction") {
+            const box = list.querySelector(`[data-correct-for="${CSS.escape(id)}"]`);
+            if (box) { box.style.display = "none"; box.querySelector("textarea").value = ""; }
+            return;
+          }
+        });
+      });
+    }
+    async function decideProposal(id, decision, replyText, btn) {
+      btn.disabled = true;
+      try {
+        const body = { proposal_id: id, decision };
+        if (decision === "correct" && replyText) body.reply = replyText;
+        const res = await fetch(BASE + "?admin_action=proposal_decide", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+        const msg = data.sent_to_customer
+          ? "✓ تم الإرسال للعميل"
+          : "✓ تم الحفظ — لم يُرسل للعميل (وضع المعاينة)";
+        // optional: small visual ack instead of alert. كاف الـ refresh أدناه.
+        console.log(msg);
+        refresh();
+      } catch (e) {
+        alert("فشل: " + e.message);
+        btn.disabled = false;
+      }
     }
     function renderAudit(arr) {
       const list = $("audit-list");
