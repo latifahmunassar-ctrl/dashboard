@@ -38,6 +38,20 @@
     section:has(#filter-urgent)      { background: #fffbeb; }  /* amber  */
     section:has(#conversations-list) { background: #f0f9ff; }  /* sky    */
     section:has(#proposals-list)     { background: #fef2f2; }  /* rose   */
+
+    /* Staff mode hides admin-only sections: AI master switch, staff
+       roster CRUD, routing-rules CRUD. Staff still see stats, filters,
+       conversations (with assign/AI controls on their own rows), and
+       the proposals queue. Same URL, lighter UI. */
+    body.staff-mode .ai-toggle-card,
+    body.staff-mode section:has(#staff-list),
+    body.staff-mode section:has(#rules-list) {
+      display: none;
+    }
+    body.staff-mode .last-updated::before {
+      content: "👤 وضع الموظفين · ";
+      color: var(--accent); font-weight: 800;
+    }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: "Tajawal", system-ui, sans-serif; font-weight: 700; }
     .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
@@ -465,6 +479,24 @@
     const BASE = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router";
     const ENDPOINT = BASE + "?admin_action=dashboard_data";
     const STORAGE_KEY = "alezz_dashboard_token";
+    const ROLE_KEY = "alezz_dashboard_role";
+
+    function applyRole(role) {
+      document.body.classList.toggle("staff-mode", role === "staff");
+    }
+    function setSession(newToken, role) {
+      token = newToken;
+      localStorage.setItem(STORAGE_KEY, newToken);
+      localStorage.setItem(ROLE_KEY, role);
+      applyRole(role);
+    }
+    function clearSession() {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(ROLE_KEY);
+      token = "";
+      applyRole("admin");
+    }
+    applyRole(localStorage.getItem(ROLE_KEY) || "admin");
 
     const $ = (id) => document.getElementById(id);
     const overlay = $("auth-overlay");
@@ -526,8 +558,7 @@
           authError.textContent = data.error || "خطأ في تسجيل الدخول";
           return;
         }
-        token = data.token;
-        localStorage.setItem(STORAGE_KEY, data.token);
+        setSession(data.token, "staff");
         hideAuth();
         refresh();
         startAutoRefresh();
@@ -557,12 +588,9 @@
     });
 
     authSubmit.addEventListener("click", () => {
-      // Strip whitespace, including non-breaking space / zero-width chars
-      // that sometimes sneak in when copying tokens from chat/email.
-      const t = authInput.value.replace(/[\s ​‌‍﻿]+/g, "");
-      if (!t) return;
-      token = t;
-      localStorage.setItem(STORAGE_KEY, t);
+      const _admin_t_ = authInput.value.replace(/\s+/g, "");
+      if (!_admin_t_) return;
+      setSession(_admin_t_, "admin");
       hideAuth();
       refresh();
     });
@@ -578,8 +606,7 @@
           headers: { Authorization: "Bearer " + token },
         });
       } catch (_) {}
-      localStorage.removeItem(STORAGE_KEY);
-      token = "";
+      clearSession();
       stopAutoRefresh();
       showAuth();
     });
