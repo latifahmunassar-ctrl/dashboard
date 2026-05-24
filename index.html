@@ -1194,6 +1194,10 @@
       });
       list.querySelectorAll("[data-action=open-conv]").forEach((el) => {
         el.addEventListener("click", () => openConversation(el.dataset.phone, el.dataset.name));
+        // Hover-prefetch — by the time the click lands, the Twilio response
+        // is already on its way (or in cache).
+        el.addEventListener("mouseenter", () => prefetchConversation(el.dataset.phone));
+        el.addEventListener("touchstart", () => prefetchConversation(el.dataset.phone), { passive: true });
       });
     }
 
@@ -1396,28 +1400,55 @@
       return "AI";
     }
 
+    // Per-phone cache so reopening a conversation is instant. Twilio's
+    // Messages.json round-trip takes ~1–3s; we render the cached copy
+    // immediately and refresh in the background.
+    const convHistoryCache = new Map();
+    // Hover-prefetch: kick the fetch when the mouse enters the row, so
+    // by the time the click registers the response is already in flight.
+    const convInflight = new Map();
+    function prefetchConversation(phone) {
+      if (!phone || convInflight.has(phone)) return;
+      const p = fetch(BASE + "?admin_action=conversation_history", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
+        .then(data => {
+          convHistoryCache.set(phone, data.items || []);
+          return data.items || [];
+        })
+        .finally(() => convInflight.delete(phone));
+      convInflight.set(phone, p);
+      return p;
+    }
     async function openConversation(phone, name) {
       convPhone = phone;
       $("conv-title").textContent = name;
       $("conv-sub").textContent = fmtPhone(phone);
-      $("conv-body").textContent = "جاري التحميل…";
       $("conv-overlay").style.display = "grid";
       $("conv-input").value = "";
+      const cached = convHistoryCache.get(phone);
+      if (cached) {
+        renderConvBody(cached);   // instant paint from cache
+      } else {
+        $("conv-body").textContent = "جاري التحميل…";
+      }
       await loadConversationHistory();
     }
     async function loadConversationHistory() {
       if (!convPhone) return;
+      const phone = convPhone;
       try {
-        const res = await fetch(BASE + "?admin_action=conversation_history", {
-          method: "POST",
-          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: convPhone }),
-        });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data = await res.json();
-        renderConvBody(data.items || []);
+        // Reuse the in-flight prefetch if there is one, otherwise start fresh
+        const items = await (convInflight.get(phone) || prefetchConversation(phone));
+        if (phone !== convPhone) return; // user switched conversation mid-fetch
+        renderConvBody(items);
       } catch (e) {
-        $("conv-body").innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
+        if (phone === convPhone) {
+          $("conv-body").innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
+        }
       }
     }
     function renderConvBody(items) {
