@@ -935,7 +935,7 @@
     // 🧪 DEV BYPASS — once a token exists in localStorage, the three role
     // buttons skip the JWT/password form and just flip the body class.
     // Re-enable password gating later by setting DEV_BYPASS = false.
-    const DEV_BYPASS = true;
+    const DEV_BYPASS = false;
     if (DEV_BYPASS) {
       const banner = document.getElementById("dev-bypass-banner");
       if (banner) banner.style.display = "";
