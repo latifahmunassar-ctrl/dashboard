@@ -1188,6 +1188,9 @@
 
     let aiForceOffAll = false;
     let aiForceOnAll = false;
+    // معلومات الموظف الجاي مع الـ dashboard_data (null لو الادمن دخل
+    // بـ legacy JWT). نستخدمها للفلترة حسب الوجهات في وضع المبيعات.
+    let me = null;
     function renderGlobalToggle(enabled, forceOffAll, forceOnAll) {
       globalAiEnabled = enabled;
       aiForceOffAll = !!forceOffAll;
@@ -1285,8 +1288,14 @@
       // complaintsCache (احتمال يكون فاضي لو لسه ما تحمّل). تحديث الـ
       // complaints لاحقاً يستدعي applyConversationsFilter() مرة ثانية.
       const isMonitor = document.body.classList.contains("monitor-mode");
+      const isSales = document.body.classList.contains("staff-mode");
       const complaintPhones = isMonitor
         ? new Set(complaintsCache.map(c => c.customer_phone))
+        : null;
+      // فلتر وجهات المبيعات: لو الموظف عنده destinations محددة، يشوف
+      // فقط المحادثات اللي وجهتها فيها أو المخصصة له بالاسم.
+      const myDest = (isSales && me && Array.isArray(me.destinations))
+        ? new Set(me.destinations.map(d => d.trim().toLowerCase()))
         : null;
       const arr = conversationsCache.filter(c => {
         if (filterUrgent && c.priority !== "URGENT") return false;
@@ -1297,6 +1306,12 @@
         if (filterAi === "on"  && !effectiveAi(c)) return false;
         if (filterAi === "off" &&  effectiveAi(c)) return false;
         if (complaintPhones && !complaintPhones.has(c.phone)) return false;
+        if (myDest && myDest.size > 0) {
+          // المبيعات يشوف: محادثة وجهتها ضمن وجهاتي، أو معيّن لي بالاسم
+          const dest = (c.destination || "").trim().toLowerCase();
+          const assignedToMe = c.assigned_staff_phone === me.phone;
+          if (!assignedToMe && (!dest || !myDest.has(dest))) return false;
+        }
         return true;
       });
       renderConversationRows(arr);
@@ -1910,6 +1925,7 @@
         if (res.status === 401) { showAuth("التوكن خطأ"); return; }
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
+        me = data.me || null;
         renderGlobalToggle(!!data.global_ai_enabled, !!data.ai_force_off_all, !!data.ai_force_on_all);
         renderCounts(data.counts || {});
         renderStaff(data.staff || []);
