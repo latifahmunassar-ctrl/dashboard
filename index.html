@@ -2010,14 +2010,29 @@
         if (p.booking_status && p.booking_status !== "NONE") {
           tags.push(`<span class="pill tag-booking">booking:${escapeHtml(p.booking_status)}</span>`);
         }
+        const stageEmoji = ({INQUIRY:"🔍",OFFER_SENT:"💼",BOOKING_IN_PROGRESS:"📋",BOOKING_CONFIRMED:"✅",TRAVELING:"✈️",POST_TRAVEL:"🔄"})[p.customer_stage] || "🔍";
+        const stagePill = `<span class="pill tag-case">${stageEmoji} ${escapeHtml(p.customer_stage || "INQUIRY")}</span>`;
+        const interp = (p.interpretation || "").trim();
+        const reply  = (p.suggested_reply || "").trim();
         return `
           <div class="row${isUrgent ? ' urgent-row' : ''}">
             <div class="label">
               <span class="dot ${isUrgent ? 'err' : 'warn'}"></span>
-              <div class="label-text">
-                <span class="primary">${escapeHtml(p.customer_question)}</span>
+              <div class="label-text" style="flex:1;">
+                <div style="font-size:11px; font-weight:800; color:#0f766e; margin-bottom:2px;">📩 سؤال العميل</div>
+                <span class="primary" style="font-weight:800;">${escapeHtml(p.customer_question)}</span>
                 <span class="secondary">${escapeHtml(p.customer_profile_name || "")} (${escapeHtml(fmtPhone(p.customer_phone))})${cat ? " · " + escapeHtml(cat) : ""}</span>
-                <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${tags.join("")}</div>
+                <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${stagePill}${tags.join("")}</div>
+                ${interp ? `
+                  <div style="margin-top:8px; padding:8px; background:#f0fdfa; border-right:3px solid #14b8a6; border-radius:6px;">
+                    <div style="font-size:11px; font-weight:800; color:#0f766e; margin-bottom:2px;">🧠 فهمت من العميل</div>
+                    <div style="font-size:13px; color:#134e4a; font-weight:600;">${escapeHtml(interp)}</div>
+                  </div>` : ""}
+                ${reply ? `
+                  <div style="margin-top:6px; padding:8px; background:#fef3c7; border-right:3px solid #f59e0b; border-radius:6px;">
+                    <div style="font-size:11px; font-weight:800; color:#92400e; margin-bottom:2px;">💡 الرد المقترح</div>
+                    <div style="font-size:13px; color:#78350f; font-weight:600; white-space:pre-wrap;">${escapeHtml(reply)}</div>
+                  </div>` : ""}
               </div>
             </div>
             <div class="meta">
