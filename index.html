@@ -583,7 +583,7 @@
       </div>
       <div class="conv-body" id="conv-body">جاري التحميل…</div>
       <div class="conv-footer">
-        <textarea id="conv-input" placeholder="اكتب الرد للعميل…" rows="2"></textarea>
+        <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
         <button id="conv-send">إرسال</button>
       </div>
     </div>
@@ -1438,6 +1438,13 @@
     $("conv-close").addEventListener("click", () => {
       $("conv-overlay").style.display = "none";
       convPhone = "";
+    });
+    // Enter يرسل، Shift+Enter ينزل سطر جديد
+    $("conv-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        $("conv-send").click();
+      }
     });
     $("conv-send").addEventListener("click", async () => {
       const text = $("conv-input").value.trim();
