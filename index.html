@@ -1134,7 +1134,7 @@
         sub.textContent = aiForceOnAll
           ? "كل المحادثات شغّالة — حتى الموقوفة يدوياً."
           : "البوت شغّال، لكن المحادثات اللي أوقفتيها يدوياً (🔴) تظل موقوفة.";
-        btn.textContent = "إيقاف";
+        btn.textContent = "🟢 شغال";
         btn.className = "big-toggle";
       } else {
         label.textContent = aiForceOffAll
@@ -1143,7 +1143,7 @@
         sub.textContent = aiForceOffAll
           ? "كل المحادثات موقوفة — حتى المفعّلة يدوياً."
           : "البوت موقوف، لكن المحادثات اللي مفعّلتيها يدوياً (🟢) تظل شغّالة.";
-        btn.textContent = "تشغيل";
+        btn.textContent = "🔴 موقوف";
         btn.className = "big-toggle off";
       }
       btn.disabled = false;
