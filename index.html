@@ -109,6 +109,22 @@
       text-overflow: ellipsis;
       max-width: 100%;
     }
+    /* Dedicated assigned-staff line — مهم للمراقبين */
+    .conv-assigned {
+      display: block;
+      margin: 2px 0;
+      font-size: 12px;
+      font-weight: 800;
+      color: #1e40af;
+      background: #dbeafe;
+      padding: 3px 10px;
+      border-radius: 8px;
+      width: fit-content;
+    }
+    .conv-assigned.unassigned {
+      color: #92400e;
+      background: #fef3c7;
+    }
 
     /* Admin tab bar — لفصل "إدارة المستخدمين" عن الشاشة الرئيسية.
        Hidden whenever the body is in a non-admin role view. */
@@ -1351,6 +1367,11 @@
         const previewLine = previewTrunc
           ? `<span class="conv-preview">💬 ${escapeHtml(previewTrunc)}</span>`
           : "";
+        // Dedicated assigned-staff line — مطلوب للمراقبين عشان يعرفون
+        // مين المسؤول عن كل عميل قبل ما يفتحون المحادثة.
+        const assignedLine = c.assigned_staff_phone
+          ? `<span class="conv-assigned">👤 المسؤول: ${escapeHtml(staffNameFor(c.assigned_staff_phone))}${c.assigned_by ? " (" + escapeHtml(c.assigned_by === "auto" ? "تلقائي" : "نقل") + ")" : ""}</span>`
+          : `<span class="conv-assigned unassigned">👤 غير معيّن — يحتاج تخصيص موظف</span>`;
         return `
           <div class="row${urgentRow}" data-phone="${escapeHtml(c.phone)}">
             <div class="label conv-clickable" data-action="open-conv" data-phone="${escapeHtml(c.phone)}" data-name="${escapeHtml(c.profile_name || ph)}">
@@ -1358,7 +1379,8 @@
               <div class="label-text">
                 <span class="primary">${escapeHtml(c.profile_name || ph)}</span>
                 ${previewLine}
-                <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}${destBadge}${assignedBadge}</span>
+                ${assignedLine}
+                <span class="secondary">${escapeHtml(ph)} · آخر نشاط ${escapeHtml(fmtTime(c.last_message_at))}${destBadge}</span>
                 ${tags.length ? `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${tags.join("")}</div>` : ""}
               </div>
             </div>
