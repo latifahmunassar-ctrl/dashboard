@@ -943,7 +943,7 @@
       stopAutoRefresh();
       showAuth();
     });
-    refreshBtn.addEventListener("click", () => refresh());
+    refreshBtn.addEventListener("click", () => refresh({ manual: true }));
 
     let globalAiEnabled = null;
     let staffList = [];
@@ -1814,9 +1814,15 @@
       }).join("");
     }
 
-    async function refresh() {
+    let refreshInflight = false;
+    async function refresh(opts) {
       if (!token) { showAuth(); return; }
-      refreshBtn.disabled = true;
+      // الـ auto-poll السريع قد يطلق طلبات متراكبة لو الشبكة بطيئة —
+      // نتجاهل الـ tick القادم لو في طلب جاري بعد.
+      if (refreshInflight) return;
+      const isManual = !!(opts && opts.manual);
+      refreshInflight = true;
+      if (isManual) refreshBtn.disabled = true;
       try {
         const res = await fetch(buildDashboardUrl(), { headers: { Authorization: "Bearer " + token } });
         if (res.status === 401) { showAuth("التوكن خطأ"); return; }
@@ -1834,13 +1840,24 @@
         console.error(e);
         $("now").textContent = "خطأ: " + e.message;
       } finally {
-        refreshBtn.disabled = false;
+        refreshInflight = false;
+        if (isManual) refreshBtn.disabled = false;
       }
     }
     function startAutoRefresh() {
       stopAutoRefresh();
-      refreshTimer = setInterval(refresh, 30_000);
+      // Poll every 3s for near-real-time appearance of new messages. The
+      // dashboard_data endpoint is light (5 simple queries) and the
+      // response is small — the perceived latency drops from up-to-30s
+      // to ~1.5s on average.
+      refreshTimer = setInterval(refresh, 3_000);
     }
+    // عند رجوع المتصفح للتاب (visibilitychange) أو focus، حدّث فوراً
+    // بدون انتظار الـ tick القادم.
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && token) refresh();
+    });
+    window.addEventListener("focus", () => { if (token) refresh(); });
     function stopAutoRefresh() {
       if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
     }
