@@ -1281,19 +1281,17 @@
       list.innerHTML = arr.map((c) => {
         const ph = fmtPhone(c.phone);
         const inherit = c.ai_enabled === null || c.ai_enabled === undefined;
-        // Effective state: force_off_all silences everything; force_on_all
-        // forces everything on; otherwise explicit per-conversation
-        // override wins, then global.
+        // Effective state: force flags trump everything; otherwise explicit
+        // per-conversation override wins, then global.
         const effective = aiForceOffAll ? false
           : aiForceOnAll ? true
           : (inherit ? globalAiEnabled : c.ai_enabled);
-        const cls = inherit ? "inherit" : (c.ai_enabled ? "" : "off");
-        const txt = inherit
-          ? `⚪ موروث`
-          : c.ai_enabled
-            ? `🟢 شغال`
-            : `🔴 موقوف`;
         const dotCls = effective ? "ok" : "err";
+        // Button color + text reflect the EFFECTIVE state, so when admin
+        // picks "الكل" every row mirrors the global state immediately.
+        // The reset (↺) button still flips the underlying override.
+        const cls = effective ? "" : "off";
+        const txt = effective ? `🟢 شغال` : `🔴 موقوف`;
         const destBadge = c.destination ? ` · ${escapeHtml(c.destination)}` : "";
         const assignedBadge = c.assigned_staff_phone
           ? ` · 👤 ${escapeHtml(staffNameFor(c.assigned_staff_phone))}${c.assigned_by ? " (" + escapeHtml(c.assigned_by === "auto" ? "تلقائي" : "نقل") + ")" : ""}`
