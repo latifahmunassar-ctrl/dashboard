@@ -439,6 +439,16 @@
       <div class="ai-toggle-info">
         <h2 id="ai-toggle-label">⏳ تحميل…</h2>
         <p id="ai-toggle-sub">المفتاح العام للذكاء الاصطناعي. لو موقوف، البوت ما يرد على أي محادثة (إلا اللي مفعّل فيها overrides).</p>
+        <!-- AI status filter — مرتبط بقسم AI -->
+        <div class="filter-bar" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
+          <span class="filter-label" style="color:#166534;">⚙️ فلتر حالة AI</span>
+          <select id="filter-ai-select" class="filter-select">
+            <option value="" selected>الكل (كل المحادثات)</option>
+            <option value="on">🟢 المحادثات اللي AI شغال عليها</option>
+            <option value="off">🔴 المحادثات اللي AI موقوف عليها</option>
+          </select>
+          <span style="font-size:12px; color:var(--muted);">📅 يشمل القديم والجديد</span>
+        </div>
       </div>
       <button class="big-toggle" id="ai-toggle-btn" disabled>—</button>
     </div>
@@ -500,16 +510,6 @@
         <select id="filter-customer-select" class="filter-select"></select>
         <span class="filter-label">الحالة</span>
         <select id="filter-case-select" class="filter-select"></select>
-      </div>
-      <!-- AI status filter — سطر مستقل بخلفية ملوّنة لتمييزه -->
-      <div class="filter-bar" style="margin-bottom:8px; background:#f0fdf4; border:1px solid #bbf7d0; padding:8px 12px; border-radius:10px;">
-        <span class="filter-label" style="color:#166534;">⚙️ حالة AI</span>
-        <select id="filter-ai-select" class="filter-select">
-          <option value="" selected>الكل (كل المحادثات)</option>
-          <option value="on">🟢 المحادثات اللي AI شغال عليها</option>
-          <option value="off">🔴 المحادثات اللي AI موقوف عليها</option>
-        </select>
-        <span style="font-size:12px; color:var(--muted); margin-right:8px;">📅 يشمل القديم والجديد تلقائياً</span>
       </div>
       <div id="custom-range-row" style="display:none; gap:8px; margin-bottom:8px; flex-wrap:wrap; align-items:center;">
         <label style="font-size:13px; color:var(--muted); font-weight:700;">من</label>
