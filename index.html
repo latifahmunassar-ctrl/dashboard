@@ -438,9 +438,28 @@
     <div class="ai-toggle-card" id="ai-toggle-card">
       <div class="ai-toggle-info">
         <h2 id="ai-toggle-label">⏳ تحميل…</h2>
-        <p>المفتاح العام للذكاء الاصطناعي. لو موقوف، البوت ما يرد على أي محادثة (إلا اللي مفعّل فيها overrides).</p>
+        <p id="ai-toggle-sub">المفتاح العام للذكاء الاصطناعي. لو موقوف، البوت ما يرد على أي محادثة (إلا اللي مفعّل فيها overrides).</p>
       </div>
       <button class="big-toggle" id="ai-toggle-btn" disabled>—</button>
+    </div>
+
+    <!-- Stop-mode picker — يظهر فقط لما الادمن يبي يوقف الـ AI -->
+    <div class="auth-overlay" id="ai-stop-overlay" style="display:none;">
+      <div class="auth-card" style="text-align:right;">
+        <h2 style="margin-top:0;">🔴 إيقاف الذكاء الاصطناعي</h2>
+        <p style="color:var(--muted); font-size:14px; margin-bottom:18px;">اختاري نوع الإيقاف:</p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <button id="ai-stop-all" style="padding:14px; background:var(--err); color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-family:inherit; font-size:14px; text-align:right;">
+            🔴 إيقاف الكل
+            <div style="font-weight:600; font-size:12px; opacity:0.9; margin-top:4px;">يوقف الذكاء الاصطناعي لكل المحادثات دون استثناء</div>
+          </button>
+          <button id="ai-stop-except" style="padding:14px; background:#f59e0b; color:white; border:none; border-radius:10px; font-weight:800; cursor:pointer; font-family:inherit; font-size:14px; text-align:right;">
+            ⚠️ إيقاف الكل عدا المخصصين
+            <div style="font-weight:600; font-size:12px; opacity:0.9; margin-top:4px;">يظل شغّال للمحادثات اللي فعّلتيها يدوياً (🟢)</div>
+          </button>
+          <button id="ai-stop-cancel" style="padding:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">إلغاء</button>
+        </div>
+      </div>
     </div>
 
     <!-- WhatsApp-style: latest conversations at the top of the main view -->
@@ -1078,29 +1097,63 @@
       return res.json();
     }
 
-    function renderGlobalToggle(enabled) {
+    let aiForceOffAll = false;
+    function renderGlobalToggle(enabled, forceOffAll) {
       globalAiEnabled = enabled;
+      aiForceOffAll = !!forceOffAll;
       const card = $("ai-toggle-card");
       const label = $("ai-toggle-label");
+      const sub = $("ai-toggle-sub");
       const btn = $("ai-toggle-btn");
       card.className = "ai-toggle-card " + (enabled ? "on" : "off");
-      label.textContent = enabled ? "🟢 AI شغّال" : "🔴 AI موقوف";
-      btn.textContent = enabled ? "إيقاف" : "تشغيل";
-      btn.className = "big-toggle" + (enabled ? "" : " off");
+      if (enabled) {
+        label.textContent = "🟢 AI شغال";
+        sub.textContent = "البوت يرد تلقائياً على المحادثات (إلا المحادثات الموقوفة يدوياً).";
+        btn.textContent = "إيقاف";
+        btn.className = "big-toggle";
+      } else {
+        label.textContent = aiForceOffAll
+          ? "🔴 AI موقوف (الكل)"
+          : "🔴 AI موقوف (عدا المخصصين)";
+        sub.textContent = aiForceOffAll
+          ? "كل المحادثات موقوفة — حتى الـ overrides اليدوية."
+          : "البوت موقوف، لكن المحادثات اللي مفعّلتيها يدوياً (🟢) تظل شغّالة.";
+        btn.textContent = "تشغيل";
+        btn.className = "big-toggle off";
+      }
       btn.disabled = false;
     }
-    $("ai-toggle-btn").addEventListener("click", async () => {
+    async function setGlobalAi(enabled, forceOffAll) {
       const btn = $("ai-toggle-btn");
       btn.disabled = true;
       try {
-        const next = !globalAiEnabled;
-        await callApi("set_global_ai", { enabled: next });
-        renderGlobalToggle(next);
+        await callApi("set_global_ai", { enabled, force_off_all: !!forceOffAll });
+        renderGlobalToggle(enabled, enabled ? false : !!forceOffAll);
         refresh();
       } catch (e) {
         alert("فشل: " + e.message);
         btn.disabled = false;
       }
+    }
+    $("ai-toggle-btn").addEventListener("click", () => {
+      if (globalAiEnabled) {
+        // Stopping → ask which kind of stop
+        $("ai-stop-overlay").style.display = "grid";
+      } else {
+        // Already off → turn back on (clears force_off_all)
+        setGlobalAi(true, false);
+      }
+    });
+    $("ai-stop-all").addEventListener("click", () => {
+      $("ai-stop-overlay").style.display = "none";
+      setGlobalAi(false, true);
+    });
+    $("ai-stop-except").addEventListener("click", () => {
+      $("ai-stop-overlay").style.display = "none";
+      setGlobalAi(false, false);
+    });
+    $("ai-stop-cancel").addEventListener("click", () => {
+      $("ai-stop-overlay").style.display = "none";
     });
 
     let conversationsCache = [];
@@ -1188,12 +1241,14 @@
       list.innerHTML = arr.map((c) => {
         const ph = fmtPhone(c.phone);
         const inherit = c.ai_enabled === null || c.ai_enabled === undefined;
-        const effective = inherit ? globalAiEnabled : c.ai_enabled;
+        // Effective state: force_off_all silences everything, otherwise
+        // explicit per-conversation override wins, then global.
+        const effective = aiForceOffAll ? false : (inherit ? globalAiEnabled : c.ai_enabled);
         const cls = inherit ? "inherit" : (c.ai_enabled ? "" : "off");
         const txt = inherit
-          ? `🟢 موروث (global)`
+          ? `⚪ موروث`
           : c.ai_enabled
-            ? `🟢 مفعّل`
+            ? `🟢 شغال`
             : `🔴 موقوف`;
         const dotCls = effective ? "ok" : "err";
         const destBadge = c.destination ? ` · ${escapeHtml(c.destination)}` : "";
@@ -1702,7 +1757,7 @@
         if (res.status === 401) { showAuth("التوكن خطأ"); return; }
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-        renderGlobalToggle(!!data.global_ai_enabled);
+        renderGlobalToggle(!!data.global_ai_enabled, !!data.ai_force_off_all);
         renderCounts(data.counts || {});
         renderStaff(data.staff || []);
         renderRules(data.routing_rules || []);
