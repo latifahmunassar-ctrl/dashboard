@@ -586,6 +586,7 @@
             <option value="sales">💼 موظف مبيعات</option>
             <option value="monitor">👁️ مراقب</option>
           </select>
+          <input id="staff-destinations" placeholder="🌍 الوجهات (مثل: ماليزيا، تركيا) — فاضي = الكل" style="min-width:300px;" />
           <button id="staff-add">إضافة</button>
         </div>
       </div>
@@ -1009,6 +1010,12 @@
         const roleBadge = s.role === "monitor"
           ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">👁️ مراقب</span>'
           : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">💼 مبيعات</span>';
+        const dests = Array.isArray(s.destinations) ? s.destinations : [];
+        const destLine = dests.length
+          ? `<div style="margin-top:4px; display:flex; gap:4px; flex-wrap:wrap;">${dests.map(d =>
+              `<span style="background:#ecfeff;color:#155e75;border:1px solid #a5f3fc;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">🌍 ${escapeHtml(d)}</span>`
+            ).join("")}</div>`
+          : `<div style="margin-top:4px;"><span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">🌐 كل الوجهات</span></div>`;
         return `
         <div class="row">
           <div class="label">
@@ -1016,9 +1023,11 @@
             <div class="label-text">
               <span class="primary">${escapeHtml(s.name)} ${roleBadge}</span>
               <span class="secondary">${escapeHtml(fmtPhone(s.phone))}${s.username ? " · @" + escapeHtml(s.username) : ""}</span>
+              ${destLine}
             </div>
           </div>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="toggle-btn" data-action="staff-destinations" data-phone="${escapeHtml(s.phone)}" data-name="${escapeHtml(s.name)}" data-current="${escapeHtml(dests.join(", "))}" style="min-width:auto;padding:6px 10px" title="تعديل الوجهات">🌍 وجهات</button>
             <button class="toggle-btn" data-action="staff-role" data-phone="${escapeHtml(s.phone)}" data-name="${escapeHtml(s.name)}" data-role="${escapeHtml(s.role || 'sales')}" style="min-width:auto;padding:6px 10px" title="تغيير الدور">🔄 دور</button>
             <button class="toggle-btn" data-action="staff-password" data-phone="${escapeHtml(s.phone)}" data-username="${escapeHtml(s.username || '')}" style="min-width:auto;padding:6px 10px" title="ضبط كلمة السر">🔑 كلمة سر</button>
             <button class="toggle-btn off" data-action="staff-delete" data-phone="${escapeHtml(s.phone)}" style="min-width:auto;padding:6px 10px">حذف</button>
@@ -1034,6 +1043,8 @@
         b.addEventListener("click", () => setStaffPassword(b.dataset.phone, b.dataset.username)));
       list.querySelectorAll('[data-action=staff-role]').forEach(b =>
         b.addEventListener("click", () => toggleStaffRole(b.dataset.phone, b.dataset.name, b.dataset.role)));
+      list.querySelectorAll('[data-action=staff-destinations]').forEach(b =>
+        b.addEventListener("click", () => editStaffDestinations(b.dataset.phone, b.dataset.name, b.dataset.current)));
       // Populate the rule-staff dropdown too
       const ruleSel = $("rule-staff");
       ruleSel.innerHTML = '<option value="">— اختر موظف —</option>' +
@@ -1046,11 +1057,13 @@
       const username = $("staff-username").value.trim().toLowerCase();
       const password = $("staff-password").value;
       const role = $("staff-role").value;
+      const destinations = $("staff-destinations").value
+        .split(/[,،]/).map(s => s.trim()).filter(Boolean);
       if (!name || !phone) { alert("املأ الاسم والجوال"); return; }
       if (password && password.length < 4) { alert("كلمة السر قصيرة جداً (4 أحرف على الأقل)"); return; }
       if (password && !username) { alert("اختاري اسم مستخدم لكلمة السر"); return; }
       try {
-        await callApi("upsert_staff", { name, phone, role });
+        await callApi("upsert_staff", { name, phone, role, destinations });
         if (username && password) {
           await callApi("staff_set_password", { phone, username, password });
         }
@@ -1059,9 +1072,13 @@
         $("staff-username").value = "";
         $("staff-password").value = "";
         $("staff-role").value = "sales";
+        $("staff-destinations").value = "";
         const roleLabel = role === "monitor" ? "👁️ مراقب" : "💼 مبيعات";
+        const destLine = destinations.length
+          ? `\nالوجهات: ${destinations.join("، ")}`
+          : "\nالوجهات: كل الوجهات";
         const credLine = (username && password) ? `\nاسم المستخدم: ${username}\nكلمة السر: ${password}` : "";
-        alert(`تمت إضافة الموظف ✓\nالدور: ${roleLabel}${credLine}`);
+        alert(`تمت إضافة الموظف ✓\nالدور: ${roleLabel}${destLine}${credLine}`);
         refresh();
       } catch (e) { alert("فشل: " + e.message); }
     }
@@ -1069,6 +1086,18 @@
       if (!confirm("احذف الموظف؟")) return;
       try { await callApi("delete_staff", { phone }); refresh(); }
       catch (e) { alert("فشل: " + e.message); }
+    }
+    async function editStaffDestinations(phone, name, current) {
+      const input = prompt(
+        `وجهات ${name}\nاكتبيها مفصولة بفاصلة. اتركيها فاضية = كل الوجهات.\n\nمثال: ماليزيا، تركيا، عمان`,
+        current || ""
+      );
+      if (input === null) return;
+      const destinations = input.split(/[,،]/).map(s => s.trim()).filter(Boolean);
+      try {
+        await callApi("upsert_staff", { name, phone, destinations });
+        refresh();
+      } catch (e) { alert("فشل: " + e.message); }
     }
     async function toggleStaffRole(phone, name, currentRole) {
       const nextRole = currentRole === "monitor" ? "sales" : "monitor";
