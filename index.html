@@ -1498,21 +1498,12 @@
       }
       const sevLabel = { urgent: "🚨 عاجلة", medium: "⚠️ متوسطة", normal: "عادية" };
       const stLabel = { in_progress: "جاري حلها", resolved: "حُلّت", closed_unresolved: "مغلقة بدون حل" };
-      const cmtypeLabel = {
-        PAYMENT_ISSUE: "💳 مشكلة دفع",
-        HOTEL_ISSUE: "🏨 مشكلة فندق",
-        FLIGHT_ISSUE: "✈️ مشكلة طيران",
-        SERVICE_ISSUE: "🛎️ مشكلة خدمة",
-        DELAY_RESPONSE: "⏱️ تأخر رد",
-        GENERAL_DISSATISFACTION: "😞 استياء عام",
-      };
       list.innerHTML = filtered.map(c => {
         const sevPill = c.severity === "urgent" ? "tag-complaint" : c.severity === "medium" ? "tag-case" : "tag-new";
         const stPill = c.status === "resolved" ? "tag-booking" : c.status === "closed_unresolved" ? "tag-new" : "tag-case";
         const phone = (c.customer_phone || "").replace(/^whatsapp:/, "");
         const cname = c.customer_name || phone;
         const cmtype = c.complaint_type || "";
-        const cmtypePillLabel = cmtype ? (cmtypeLabel[cmtype] || cmtype) : "❓ غير مصنّفة";
         const resolution = c.resolution_notes ? `<div style="margin-top:6px; font-size:12px; color:var(--muted);">الحل: ${escapeHtml(c.resolution_notes)}</div>` : "";
         const urgentRow = c.severity === "urgent" ? " urgent-row" : "";
         return `
@@ -1521,9 +1512,8 @@
               <span class="dot ${c.severity === 'urgent' ? 'err' : c.severity === 'medium' ? 'warn' : 'muted'}"></span>
               <div class="label-text">
                 <span class="primary">${escapeHtml(c.description || "—")}</span>
-                <span class="secondary">${escapeHtml(cname)} (${escapeHtml(phone)}) · ${escapeHtml(fmtTime(c.created_at))}</span>
+                <span class="secondary">${escapeHtml(cname)} (${escapeHtml(phone)})${cmtype ? " · " + escapeHtml(cmtype) : ""} · ${escapeHtml(fmtTime(c.created_at))}</span>
                 <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
-                  <span class="pill tag-complaint">${escapeHtml(cmtypePillLabel)}</span>
                   <span class="pill ${sevPill}">${escapeHtml(sevLabel[c.severity] || c.severity)}</span>
                   <span class="pill ${stPill}">${escapeHtml(stLabel[c.status] || c.status)}</span>
                   ${c.assigned_staff_name ? `<span class="pill tag-repeat">👤 ${escapeHtml(c.assigned_staff_name)}</span>` : ""}
@@ -1531,16 +1521,7 @@
                 ${resolution}
               </div>
             </div>
-            <div style="display:flex; flex-direction:column; gap:4px; min-width:180px;">
-              <select class="assign-control" data-cm-action="complaint_type" data-id="${escapeHtml(c.id)}">
-                <option value=""${!cmtype?' selected':''}>— نوع الشكوى —</option>
-                <option value="PAYMENT_ISSUE"${cmtype==='PAYMENT_ISSUE'?' selected':''}>💳 مشكلة دفع</option>
-                <option value="HOTEL_ISSUE"${cmtype==='HOTEL_ISSUE'?' selected':''}>🏨 مشكلة فندق</option>
-                <option value="FLIGHT_ISSUE"${cmtype==='FLIGHT_ISSUE'?' selected':''}>✈️ مشكلة طيران</option>
-                <option value="SERVICE_ISSUE"${cmtype==='SERVICE_ISSUE'?' selected':''}>🛎️ مشكلة خدمة</option>
-                <option value="DELAY_RESPONSE"${cmtype==='DELAY_RESPONSE'?' selected':''}>⏱️ تأخر رد</option>
-                <option value="GENERAL_DISSATISFACTION"${cmtype==='GENERAL_DISSATISFACTION'?' selected':''}>😞 استياء عام</option>
-              </select>
+            <div style="display:flex; flex-direction:column; gap:4px; min-width:140px;">
               <select class="assign-control" data-cm-action="severity" data-id="${escapeHtml(c.id)}">
                 <option value="normal"${c.severity==='normal'?' selected':''}>عادية</option>
                 <option value="medium"${c.severity==='medium'?' selected':''}>متوسطة</option>
@@ -1557,7 +1538,7 @@
       }).join("");
       list.querySelectorAll("[data-cm-action]").forEach(el => {
         const action = el.dataset.cmAction;
-        if (action === "severity" || action === "status" || action === "complaint_type") {
+        if (action === "severity" || action === "status") {
           el.addEventListener("change", () => updateComplaint(el.dataset.id, { [action]: el.value }));
         } else if (action === "resolution") {
           el.addEventListener("click", () => {
