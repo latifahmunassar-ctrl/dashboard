@@ -1981,12 +1981,18 @@
     }
     function renderProposalRows(arr) {
       const list = $("proposals-list");
-      // لا تعيد الرسم إذا الادمن حالياً يحرّر رد proposal — كان يسبب
-      // فقدان focus وتمرير الصفحة لتحت كل ٣ ثوان. الرسم يستأنف بمجرد
-      // ما الادمن يضغط حفظ/إلغاء/موافق على الصف.
+      // لا تعيد الرسم إذا الادمن حالياً يحرّر رد proposal أو يكتب في
+      // خانة intent/sub_intent — كان يسبب فقدان focus وتمرير الصفحة.
       const editing = Array.from(list.querySelectorAll(".proposal-correct"))
         .some(el => el.style.display !== "none");
-      if (editing) return;
+      const active = document.activeElement;
+      const focusedInside = active && list.contains(active) && (
+        active.classList.contains("proposal-intent") ||
+        active.classList.contains("proposal-correct-text") ||
+        active.tagName === "TEXTAREA" ||
+        active.tagName === "INPUT"
+      );
+      if (editing || focusedInside) return;
       if (!arr.length) {
         list.innerHTML = '<div class="empty">✅ ولا proposal مطابق للفلتر الحالي</div>';
         return;
@@ -2032,7 +2038,13 @@
               <div class="label-text" style="flex:1;">
                 <div style="font-size:11px; font-weight:800; color:#0f766e; margin-bottom:2px;">📩 سؤال العميل</div>
                 <span class="primary" style="font-weight:800;">${escapeHtml(p.customer_question)}</span>
-                <span class="secondary">${escapeHtml(p.customer_profile_name || "")} (${escapeHtml(fmtPhone(p.customer_phone))})${cat ? " · " + escapeHtml(cat) : ""}</span>
+                <span class="secondary">${escapeHtml(p.customer_profile_name || "")} (${escapeHtml(fmtPhone(p.customer_phone))})</span>
+                <div style="margin-top:4px; display:flex; gap:6px; align-items:center; font-size:11px; color:#6b7280; flex-wrap:wrap;">
+                  <span style="font-weight:800;">🗂️ التصنيف:</span>
+                  <input class="proposal-intent" data-class-field="proposed_intent" data-id="${escapeHtml(p.id)}" value="${escapeHtml(p.proposed_intent || "")}" placeholder="Package_SUPPORT" style="padding:3px 8px; border:1px solid #d1d5db; border-radius:6px; font-family:inherit; font-weight:700; font-size:11px; background:white; min-width:140px;" />
+                  <span style="font-weight:800; color:#9ca3af;">/</span>
+                  <input class="proposal-intent" data-class-field="proposed_sub_intent" data-id="${escapeHtml(p.id)}" value="${escapeHtml(p.proposed_sub_intent || "")}" placeholder="General Support" style="padding:3px 8px; border:1px solid #d1d5db; border-radius:6px; font-family:inherit; font-weight:700; font-size:11px; background:white; min-width:140px;" />
+                </div>
                 <div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">${editableTags}</div>
                 ${interp ? `
                   <div style="margin-top:8px; padding:8px; background:#f0fdfa; border-right:3px solid #14b8a6; border-radius:6px;">
@@ -2064,27 +2076,40 @@
             </div>
           </div>`;
       }).join("");
-      // Bind classification edit dropdowns
+      // Bind classification edit dropdowns + intent/sub_intent text inputs
+      async function patchProposalField(id, field, value, el) {
+        if (el) el.disabled = true;
+        try {
+          const res = await fetch(BASE + "?admin_action=proposal_update", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+            body: JSON.stringify({ proposal_id: id, [field]: value }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+        } catch (err) {
+          alert("فشل: " + err.message);
+        } finally {
+          if (el) el.disabled = false;
+        }
+      }
       list.querySelectorAll(".proposal-class").forEach((sel) => {
-        sel.addEventListener("change", async (e) => {
+        sel.addEventListener("change", (e) => {
           e.stopPropagation();
-          const id = sel.dataset.id;
-          const field = sel.dataset.classField;
-          const value = sel.value;
-          sel.disabled = true;
-          try {
-            const res = await fetch(BASE + "?admin_action=proposal_update", {
-              method: "POST",
-              headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-              body: JSON.stringify({ proposal_id: id, [field]: value }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
-          } catch (err) {
-            alert("فشل: " + err.message);
-          } finally {
-            sel.disabled = false;
-          }
+          patchProposalField(sel.dataset.id, sel.dataset.classField, sel.value, sel);
+        });
+      });
+      // Intent + sub-intent: free text, save on blur OR Enter
+      list.querySelectorAll(".proposal-intent").forEach((input) => {
+        const send = () => {
+          const v = input.value.trim();
+          if (v === (input.defaultValue || "").trim()) return;   // unchanged
+          patchProposalField(input.dataset.id, input.dataset.classField, v, input);
+          input.defaultValue = v;
+        };
+        input.addEventListener("blur", send);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); input.blur(); }
         });
       });
       // Bind proposal action buttons
