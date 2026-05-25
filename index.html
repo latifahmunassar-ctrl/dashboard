@@ -11,6 +11,15 @@
   <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
   <meta name="color-scheme" content="light">
   <style>
+    /* ─── NUCLEAR WHITE — overrides any cached / inherited grey ─── */
+    * {
+      background-color: #FFFFFF !important;
+    }
+    body, html {
+      background: #FFFFFF !important;
+      background-color: #FFFFFF !important;
+    }
+
     :root {
       color-scheme: light only;  /* prevents browser auto-dark on iOS/macOS Safari */
       --bg: #ffffff;             /* page background — pure white */
