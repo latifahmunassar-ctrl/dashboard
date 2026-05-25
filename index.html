@@ -1682,6 +1682,18 @@
       }
       return audioCtx;
     }
+    // المتصفح يمنع الصوت قبل أول تفاعل. نسجّل listener مرّة وحدة على
+    // أي نقرة/ضغطة مفتاح يفعّل AudioContext فوراً، عشان أول رسالة
+    // تجي بعد ذلك تصدر صوت بدون انتظار. الـ listener ينحذف نفسه.
+    function warmUpAudio() {
+      const ctx = getAudioCtx();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+    }
+    document.addEventListener("click", warmUpAudio, { once: true });
+    document.addEventListener("keydown", warmUpAudio, { once: true });
+    document.addEventListener("touchstart", warmUpAudio, { once: true, passive: true });
     function playMessageSound() {
       if (notificationsMuted) return;
       const ctx = getAudioCtx();
