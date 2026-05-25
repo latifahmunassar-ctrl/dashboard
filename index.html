@@ -1063,16 +1063,10 @@
       showAuth();
     });
     refreshBtn.addEventListener("click", () => refresh({ manual: true }));
-    // Mute toggle — يحفظ التفضيل في localStorage
-    setMuted(notificationsMuted);   // sync initial button label
-    $("mute-btn").addEventListener("click", () => {
-      setMuted(!notificationsMuted);
-      // أعطي فيدباك صوتي لما تشغّلين الصوت (ما يطلع لما تكتمين)
-      if (!notificationsMuted) {
-        // Unmuted now → play a short beep to confirm + warm up the AudioContext
-        playMessageSound();
-      }
-    });
+    // (Mute-toggle binding moved below — depends on `notificationsMuted` which
+    // is declared in the notification-sound block further down. Touching it
+    // here threw a TDZ ReferenceError and froze the whole script before
+    // refresh() could run.)
 
     let globalAiEnabled = null;
     let staffList = [];
@@ -1597,6 +1591,20 @@
       localStorage.setItem("alezz_dashboard_muted", muted ? "1" : "0");
       const btn = $("mute-btn");
       if (btn) btn.textContent = muted ? "🔕" : "🔔";
+    }
+    // الربط هنا (بعد إعلان notificationsMuted و setMuted) لتفادي TDZ
+    setMuted(notificationsMuted);
+    {
+      const muteBtn = $("mute-btn");
+      if (muteBtn) {
+        muteBtn.addEventListener("click", () => {
+          setMuted(!notificationsMuted);
+          if (!notificationsMuted) {
+            // التشغيل → نغمة قصيرة لتأكيد الصوت + warm-up للـ AudioContext
+            playMessageSound();
+          }
+        });
+      }
     }
 
     function renderConversations(arr) {
