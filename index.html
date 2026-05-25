@@ -750,6 +750,13 @@
     </footer>
   </div>
 
+  <!-- Image lightbox — اضغطي على صورة في المحادثة لتكبيرها -->
+  <div id="image-lightbox" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:10000; justify-content:center; align-items:center; cursor:zoom-out; padding:24px;">
+    <img id="image-lightbox-img" alt="" style="max-width:96vw; max-height:92vh; border-radius:8px; box-shadow:0 12px 48px rgba(0,0,0,.5); cursor:default;" />
+    <button id="image-lightbox-close" style="position:absolute; top:20px; right:24px; background:rgba(255,255,255,.15); color:white; border:none; border-radius:50%; width:44px; height:44px; font-size:22px; cursor:pointer; backdrop-filter:blur(8px);">✕</button>
+    <a id="image-lightbox-download" download style="position:absolute; bottom:20px; right:24px; background:rgba(255,255,255,.15); color:white; padding:10px 18px; border-radius:10px; font-weight:800; font-family:inherit; text-decoration:none; backdrop-filter:blur(8px);">⬇️ تحميل</a>
+  </div>
+
   <div class="auth-overlay" id="conv-overlay" style="display:none;">
     <div class="conv-card">
       <div class="conv-head">
@@ -2033,7 +2040,7 @@
       const url = mediaProxyUrl(msgSid, mm.sid);
       const id = "media_" + mm.sid;
       if (ct.startsWith("image/")) {
-        return `<div class="conv-media"><img id="${id}" data-media-url="${escapeHtml(url)}" alt="📷 صورة" style="max-width:280px; max-height:280px; border-radius:8px; display:block; background:#f3f4f6;" /></div>`;
+        return `<div class="conv-media"><img id="${id}" data-media-url="${escapeHtml(url)}" data-clickable-image="1" alt="📷 صورة" title="اضغطي للتكبير" style="max-width:280px; max-height:280px; border-radius:8px; display:block; background:#f3f4f6; cursor:zoom-in;" /></div>`;
       }
       if (ct.startsWith("video/")) {
         return `<div class="conv-media"><video id="${id}" data-media-url="${escapeHtml(url)}" controls style="max-width:280px; border-radius:8px;"></video></div>`;
@@ -2094,6 +2101,44 @@
       convPhone = "";
       stopConvPolling();
     });
+    // Image lightbox — ضغطة على أي صورة في المحادثة تفتحها بحجم كامل
+    (function setupImageLightbox() {
+      const lb = $("image-lightbox");
+      const img = $("image-lightbox-img");
+      const closeBtn = $("image-lightbox-close");
+      const dl = $("image-lightbox-download");
+      if (!lb || !img) return;
+      const open = (src) => {
+        img.src = src;
+        if (dl) dl.href = src;
+        lb.style.display = "flex";
+        document.body.style.overflow = "hidden";
+      };
+      const close = () => {
+        lb.style.display = "none";
+        img.src = "";
+        document.body.style.overflow = "";
+      };
+      // delegation — أي img مع data-clickable-image داخل conv-body
+      document.addEventListener("click", (e) => {
+        const t = e.target;
+        if (t && t.dataset && t.dataset.clickableImage === "1" && t.src) {
+          e.preventDefault();
+          e.stopPropagation();
+          open(t.src);
+        }
+      });
+      // إغلاق: ضغطة على الخلفية أو زر ✕ أو ESC
+      lb.addEventListener("click", (e) => {
+        // الإغلاق فقط لو الضغطة على الخلفية، مو على الصورة نفسها
+        if (e.target === lb) close();
+      });
+      if (closeBtn) closeBtn.addEventListener("click", close);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && lb.style.display !== "none") close();
+      });
+    })();
+
     // Emoji picker — يطلع/يختفي عند ضغط زر 😊 ويلصق الايموجي على الـ
     // cursor position في الـ textarea.
     (function setupEmojiPicker() {
