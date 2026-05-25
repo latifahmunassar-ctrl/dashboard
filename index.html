@@ -2706,6 +2706,18 @@
     }
     async function decideProposal(id, decision, replyText, btn) {
       btn.disabled = true;
+      // Optimistic UI: fade + remove the row IMMEDIATELY. Don't wait for
+      // the API or the 3s dashboard refresh. The row disappears with
+      // ~0ms perceived latency.
+      const rowEl = btn.closest(".row");
+      if (rowEl) {
+        rowEl.style.transition = "opacity 0.18s ease-out";
+        rowEl.style.opacity = "0";
+      }
+      proposalsCache = proposalsCache.filter(p => p.id !== id);
+      // Re-render proposals panel only (don't trigger full refresh).
+      applyProposalFilters();
+      // Fire the API call in background — we already showed success.
       try {
         const body = { proposal_id: id, decision };
         if (decision === "correct" && replyText) body.reply = replyText;
@@ -2714,20 +2726,16 @@
           headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
-        // Optional: small status — refresh() يكفي للسلوك الأساسي
-        const parts = [];
-        if (data.sent_to_customer) parts.push("✓ تم الإرسال للعميل");
-        else parts.push("✓ تم الحفظ — لم يُرسل (وضع المعاينة)");
-        if (data.save_outcome === "saved") parts.push("📚 حفظت في FAQ");
-        else if (data.save_outcome === "skipped_already_in_faq") parts.push("📚 موجود أصلاً في FAQ");
-        else if (data.save_outcome === "save_failed") parts.push("⚠️ ما قدرت أحفظ FAQ");
-        console.log(parts.join(" · "));
-        refresh();
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "HTTP " + res.status);
+        }
+        // Next regular refresh tick (within 3s) will sync state with
+        // server. No explicit refresh() here.
       } catch (e) {
+        // Restore the row + re-render on failure so admin can retry.
         alert("فشل: " + e.message);
-        btn.disabled = false;
+        refresh();
       }
     }
     function renderAudit(arr) {
