@@ -2286,6 +2286,7 @@
           <div class="msg-actions">
             <button type="button" data-msg-action="reply" data-msg-body="${safeBodyAttr}" data-msg-sender="${escapeHtml(senderPillLabel)}">↪️ رد</button>
             <button type="button" data-msg-action="forward" data-msg-body="${safeBodyAttr}">➡️ تحويل</button>
+            ${m.sid ? `<button type="button" data-msg-action="delete" data-msg-sid="${escapeHtml(m.sid)}">🗑️ حذف</button>` : ""}
           </div>
         </div>`;
       }).join("");
@@ -2507,7 +2508,32 @@
     $("forward-cancel").addEventListener("click", closeForwardModal);
     $("forward-search").addEventListener("input", (e) => renderForwardList(e.target.value));
 
-    // ── Click delegation on conv-body for reply/forward action buttons ───
+    // ── Delete a message (from Twilio + dashboard view) ──────────────────
+    async function deleteMessage(messageSid, btnEl) {
+      if (!messageSid) return;
+      if (!confirm("احذف الرسالة من سجلات Twilio + الداش بورد؟\n\n⚠️ ملاحظة: العميل قد لا يزال يراها في واتسابه (WhatsApp ما يدعم recall من API).")) return;
+      try {
+        const res = await fetch(BASE + "?admin_action=delete_message", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ message_sid: messageSid }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+        // Optimistic: fade + remove the bubble immediately
+        const bubble = btnEl && btnEl.closest(".conv-msg");
+        if (bubble) {
+          bubble.style.transition = "opacity 0.2s, transform 0.2s";
+          bubble.style.opacity = "0";
+          bubble.style.transform = "scale(0.95)";
+          setTimeout(() => bubble.remove(), 200);
+        }
+      } catch (e) {
+        alert("فشل الحذف: " + e.message);
+      }
+    }
+
+    // ── Click delegation on conv-body for reply/forward/delete actions ───
     $("conv-body").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-msg-action]");
       if (!btn) return;
@@ -2518,6 +2544,7 @@
       const sender = btn.dataset.msgSender || "";
       if (action === "reply") startReply(sender, body);
       else if (action === "forward") openForwardModal(body);
+      else if (action === "delete") deleteMessage(btn.dataset.msgSid, btn);
     });
 
     // Enter يرسل، Shift+Enter ينزل سطر جديد
