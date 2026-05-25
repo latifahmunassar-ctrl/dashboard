@@ -2052,25 +2052,32 @@
       const label = ct === "application/pdf" ? "📄 ملف PDF" : "📎 ملف مرفق";
       return `<div class="conv-media"><a id="${id}" data-media-url="${escapeHtml(url)}" download style="display:inline-block; padding:8px 12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">${label} <small style="opacity:0.7">(${escapeHtml(ct || "غير معروف")})</small></a></div>`;
     }
-    async function hydrateMediaElements() {
-      // Auth-aware: نجلب كل media عبر fetch مع Authorization → blob URL → نلصقها.
-      const elements = document.querySelectorAll("[data-media-url]");
-      for (const el of elements) {
-        if (el.dataset.mediaLoaded) continue;
+    function hydrateMediaElements() {
+      // نجلب كل media عبر fetch مع Authorization → blob URL → نلصقها.
+      // Parallel + per-fetch timeout: ملف بطيء واحد ما يعلّق الباقي.
+      const elements = document.querySelectorAll("[data-media-url]:not([data-media-loaded])");
+      elements.forEach((el) => {
+        el.dataset.mediaLoaded = "loading";
         const url = el.dataset.mediaUrl.replace(/&_t=[^&]*/, "");
-        try {
-          const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
-          if (!res.ok) continue;
-          const blob = await res.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          if (el.tagName === "IMG" || el.tagName === "VIDEO" || el.tagName === "AUDIO") {
-            el.src = blobUrl;
-          } else if (el.tagName === "A") {
-            el.href = blobUrl;
-          }
-          el.dataset.mediaLoaded = "1";
-        } catch (_) { /* skip */ }
-      }
+        const ctrl = new AbortController();
+        const tm = setTimeout(() => ctrl.abort(), 10000);
+        fetch(url, {
+          headers: { Authorization: "Bearer " + token },
+          signal: ctrl.signal,
+        })
+          .then(r => r.ok ? r.blob() : Promise.reject(new Error("HTTP " + r.status)))
+          .then((blob) => {
+            const blobUrl = URL.createObjectURL(blob);
+            if (el.tagName === "IMG" || el.tagName === "VIDEO" || el.tagName === "AUDIO") {
+              el.src = blobUrl;
+            } else if (el.tagName === "A") {
+              el.href = blobUrl;
+            }
+            el.dataset.mediaLoaded = "1";
+          })
+          .catch(() => { delete el.dataset.mediaLoaded; })
+          .finally(() => clearTimeout(tm));
+      });
     }
     function renderConvBody(items) {
       const body = $("conv-body");
