@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <!-- Emoji picker (web component) — يستخدم داخل نافذة المحادثة -->
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
   <style>
     :root {
       --bg: #ffffff;             /* page background — pure white */
@@ -312,6 +314,8 @@
     .conv-msg.bot.staff .sender-pill { background: rgba(34,197,94,.18); color: var(--ok); }
     .conv-footer {
       display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
+      position: relative;   /* anchor للـ emoji-picker اللي يطلع فوق */
+      align-items: stretch;
     }
     .conv-footer textarea {
       flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
@@ -757,7 +761,11 @@
       <div class="conv-body" id="conv-body">جاري التحميل…</div>
       <div class="conv-footer">
         <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
+        <button type="button" id="emoji-btn" title="إضافة إيموجي" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">😊</button>
         <button id="conv-send">إرسال</button>
+        <div id="emoji-picker-wrap" style="display:none; position:absolute; bottom:60px; left:10px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.18); border-radius:12px; overflow:hidden;">
+          <emoji-picker dir="ltr" style="--background:#ffffff; --border-color:#e5e7eb;"></emoji-picker>
+        </div>
       </div>
     </div>
   </div>
@@ -2011,6 +2019,43 @@
       convPhone = "";
       stopConvPolling();
     });
+    // Emoji picker — يطلع/يختفي عند ضغط زر 😊 ويلصق الايموجي على الـ
+    // cursor position في الـ textarea.
+    (function setupEmojiPicker() {
+      const btn = $("emoji-btn");
+      const wrap = $("emoji-picker-wrap");
+      const picker = wrap && wrap.querySelector("emoji-picker");
+      if (!btn || !wrap || !picker) return;
+      const closeOnOutsideClick = (e) => {
+        if (wrap.contains(e.target) || e.target === btn) return;
+        wrap.style.display = "none";
+        document.removeEventListener("click", closeOnOutsideClick);
+      };
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const visible = wrap.style.display !== "none";
+        if (visible) {
+          wrap.style.display = "none";
+          document.removeEventListener("click", closeOnOutsideClick);
+        } else {
+          wrap.style.display = "";
+          // يربط الـ outside-click بعد فترة عشان نفس الضغطة ما تقفله
+          setTimeout(() => document.addEventListener("click", closeOnOutsideClick), 0);
+        }
+      });
+      picker.addEventListener("emoji-click", (e) => {
+        const emoji = (e.detail && (e.detail.unicode || (e.detail.emoji && e.detail.emoji.unicode))) || "";
+        if (!emoji) return;
+        const input = $("conv-input");
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
+        const newPos = start + emoji.length;
+        input.setSelectionRange(newPos, newPos);
+        input.focus();
+      });
+    })();
+
     // Enter يرسل، Shift+Enter ينزل سطر جديد
     $("conv-input").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
