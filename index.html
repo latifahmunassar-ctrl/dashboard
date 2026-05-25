@@ -1937,6 +1937,51 @@
         }
       }
     }
+    function mediaProxyUrl(msgSid, mediaSid) {
+      return BASE + "?admin_action=media_proxy" +
+        "&msg_sid=" + encodeURIComponent(msgSid) +
+        "&media_sid=" + encodeURIComponent(mediaSid) +
+        "&_t=" + encodeURIComponent(token);   // الـ token كـ param احتياط للـ <img>
+    }
+    function renderMediaItem(msgSid, mm) {
+      // الـ <img> ما يقدر يبعث Authorization header، فنستخدم fetch+blob لتمرير الـ token.
+      // كحل مبسّط: نعرض رابط للملف. للصور نحاول inline.
+      const ct = (mm.content_type || "").toLowerCase();
+      const url = mediaProxyUrl(msgSid, mm.sid);
+      const id = "media_" + mm.sid;
+      if (ct.startsWith("image/")) {
+        return `<div class="conv-media"><img id="${id}" data-media-url="${escapeHtml(url)}" alt="📷 صورة" style="max-width:280px; max-height:280px; border-radius:8px; display:block; background:#f3f4f6;" /></div>`;
+      }
+      if (ct.startsWith("video/")) {
+        return `<div class="conv-media"><video id="${id}" data-media-url="${escapeHtml(url)}" controls style="max-width:280px; border-radius:8px;"></video></div>`;
+      }
+      if (ct.startsWith("audio/")) {
+        return `<div class="conv-media"><audio id="${id}" data-media-url="${escapeHtml(url)}" controls></audio></div>`;
+      }
+      // PDF / Office / غيرها → رابط تحميل
+      const label = ct === "application/pdf" ? "📄 ملف PDF" : "📎 ملف مرفق";
+      return `<div class="conv-media"><a id="${id}" data-media-url="${escapeHtml(url)}" download style="display:inline-block; padding:8px 12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">${label} <small style="opacity:0.7">(${escapeHtml(ct || "غير معروف")})</small></a></div>`;
+    }
+    async function hydrateMediaElements() {
+      // Auth-aware: نجلب كل media عبر fetch مع Authorization → blob URL → نلصقها.
+      const elements = document.querySelectorAll("[data-media-url]");
+      for (const el of elements) {
+        if (el.dataset.mediaLoaded) continue;
+        const url = el.dataset.mediaUrl.replace(/&_t=[^&]*/, "");
+        try {
+          const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+          if (!res.ok) continue;
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          if (el.tagName === "IMG" || el.tagName === "VIDEO" || el.tagName === "AUDIO") {
+            el.src = blobUrl;
+          } else if (el.tagName === "A") {
+            el.href = blobUrl;
+          }
+          el.dataset.mediaLoaded = "1";
+        } catch (_) { /* skip */ }
+      }
+    }
     function renderConvBody(items) {
       const body = $("conv-body");
       if (!items.length) {
@@ -1944,15 +1989,22 @@
         convLastItemsCount = 0;
         return;
       }
-      body.innerHTML = items.map(m => `
+      body.innerHTML = items.map(m => {
+        const mediaHtml = Array.isArray(m.media) && m.media.length
+          ? `<div style="margin-top:4px; display:flex; flex-direction:column; gap:4px;">${m.media.map(mm => renderMediaItem(m.sid, mm)).join("")}</div>`
+          : "";
+        return `
         <div class="conv-msg ${senderClass(m.sender)}">
           <span class="sender-pill">${senderPill(m.sender)}</span>
-          <div class="bubble">${escapeHtml(m.body)}</div>
+          <div class="bubble">${escapeHtml(m.body)}${mediaHtml}</div>
           <div class="meta">${fmtTime(m.ts)}</div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
       convLastItemsCount = items.length;
       // Scroll to bottom
       body.scrollTop = body.scrollHeight;
+      // جلب الـ media مع الـ auth header وتحويلها لـ blob URLs
+      hydrateMediaElements();
     }
     $("conv-close").addEventListener("click", () => {
       $("conv-overlay").style.display = "none";
