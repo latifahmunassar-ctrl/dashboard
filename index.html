@@ -339,6 +339,48 @@
     .conv-msg.bot.ai .sender-pill { background: rgba(56,189,248,.18); color: var(--accent); }
     .conv-msg.bot.admin .sender-pill { background: rgba(168,85,247,.18); color: #7e22ce; }
     .conv-msg.bot.staff .sender-pill { background: rgba(34,197,94,.18); color: var(--ok); }
+    /* Reply / Forward action buttons that appear on hover */
+    .msg-actions {
+      display: flex; gap: 4px; opacity: 0;
+      transition: opacity 0.15s; margin-top: 2px;
+    }
+    .conv-msg:hover .msg-actions { opacity: 1; }
+    .msg-actions button {
+      background: #ffffff; border: 1px solid var(--border);
+      color: var(--muted); padding: 3px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      font-family: inherit;
+    }
+    .msg-actions button:hover { background: #f5f5f5; color: var(--text); }
+    /* Quote-style block: shows when admin clicked Reply on a message, or
+       when rendering a quoted segment inside a message bubble. */
+    .reply-preview {
+      display: flex; align-items: stretch; gap: 10px;
+      background: #f5f5f5; border-right: 3px solid var(--accent);
+      padding: 6px 10px 6px 12px; border-radius: 6px;
+      margin: 8px 16px 0 16px;
+    }
+    .reply-preview-text {
+      flex: 1; min-width: 0;
+    }
+    .reply-preview-sender {
+      font-size: 11px; font-weight: 800; color: var(--accent);
+      margin-bottom: 2px;
+    }
+    .reply-preview-body {
+      font-size: 12px; color: var(--muted); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .reply-preview button {
+      background: transparent; border: none; color: var(--muted);
+      cursor: pointer; font-size: 16px; padding: 0 4px;
+    }
+    /* Inline quoted block inside a bubble (when message starts with "> ...") */
+    .bubble .quoted-block {
+      background: #f5f5f5; border-right: 3px solid var(--muted);
+      padding: 4px 8px; border-radius: 4px; margin-bottom: 6px;
+      font-size: 12px; color: var(--muted); white-space: pre-wrap;
+    }
     .conv-footer {
       display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);
       position: relative;   /* anchor للـ emoji-picker اللي يطلع فوق */
@@ -777,6 +819,20 @@
     </footer>
   </div>
 
+  <!-- Forward modal — اختاري محادثة لتحويل الرسالة لها -->
+  <div class="auth-overlay" id="forward-overlay" style="display:none;">
+    <div class="auth-card" style="text-align:right; max-width:540px;">
+      <h2 style="margin-top:0;">➡️ تحويل الرسالة</h2>
+      <div id="forward-original-preview" style="background:#f5f5f5; border-right:3px solid var(--accent); padding:8px 12px; border-radius:6px; margin-bottom:14px; font-size:13px; color:var(--muted); max-height:120px; overflow:auto; white-space:pre-wrap; word-break:break-word;"></div>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:10px;">اختاري المحادثة المستلِمة:</p>
+      <input type="text" id="forward-search" placeholder="🔍 بحث (اسم أو رقم)…" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-weight:600; font-size:13px; margin-bottom:10px;" />
+      <div id="forward-list" style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+        <button id="forward-cancel" style="padding:10px 16px; background:#ffffff; border:1px solid var(--border); border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Image lightbox — اضغطي على صورة في المحادثة لتكبيرها -->
   <div id="image-lightbox" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:10000; justify-content:center; align-items:center; cursor:zoom-out; padding:24px;">
     <img id="image-lightbox-img" alt="" style="max-width:96vw; max-height:92vh; border-radius:8px; box-shadow:0 12px 48px rgba(0,0,0,.5); cursor:default;" />
@@ -794,6 +850,14 @@
         <button class="refresh-btn" id="conv-close">✕</button>
       </div>
       <div class="conv-body" id="conv-body">جاري التحميل…</div>
+      <!-- Reply-preview bar: shows when admin clicked "↪️ رد" on a message -->
+      <div id="reply-preview" class="reply-preview" style="display:none;">
+        <div class="reply-preview-text">
+          <div class="reply-preview-sender" id="reply-preview-sender"></div>
+          <div class="reply-preview-body" id="reply-preview-body"></div>
+        </div>
+        <button type="button" id="reply-preview-cancel" title="إلغاء الردّ">✕</button>
+      </div>
       <div class="conv-footer">
         <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
         <button type="button" id="emoji-btn" title="إضافة إيموجي" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">😊</button>
@@ -2170,11 +2234,29 @@
         const mediaHtml = Array.isArray(m.media) && m.media.length
           ? `<div style="margin-top:4px; display:flex; flex-direction:column; gap:4px;">${m.media.map(mm => renderMediaItem(m.sid, mm)).join("")}</div>`
           : "";
+        // إذا الرسالة فيها block مقتبس في أوله ("> ... \n\n"), افصله
+        // عن النص الأصلي ليُعرض كصندوق رمادي صغير فوق المحتوى.
+        const bodyRaw = m.body || "";
+        let quotedBlock = "";
+        let restBody = bodyRaw;
+        const quoteMatch = bodyRaw.match(/^((?:>\s.*\n)+)\n*([\s\S]*)$/);
+        if (quoteMatch) {
+          const lines = quoteMatch[1].split("\n").map(l => l.replace(/^>\s?/, "")).filter(Boolean);
+          quotedBlock = `<div class="quoted-block">${escapeHtml(lines.join("\n"))}</div>`;
+          restBody = quoteMatch[2] || "";
+        }
+        const senderPillLabel = senderPill(m.sender);
+        // مهرّب النص + الجسم لأزرار reply/forward (للاستعمال في الـ data-*)
+        const safeBodyAttr = escapeHtml(bodyRaw.slice(0, 500));
         return `
         <div class="conv-msg ${senderClass(m.sender)}">
-          <span class="sender-pill">${senderPill(m.sender)}</span>
-          <div class="bubble">${escapeHtml(m.body)}${mediaHtml}</div>
+          <span class="sender-pill">${senderPillLabel}</span>
+          <div class="bubble">${quotedBlock}${escapeHtml(restBody)}${mediaHtml}</div>
           <div class="meta">${fmtTime(m.ts)}</div>
+          <div class="msg-actions">
+            <button type="button" data-msg-action="reply" data-msg-body="${safeBodyAttr}" data-msg-sender="${escapeHtml(senderPillLabel)}">↪️ رد</button>
+            <button type="button" data-msg-action="forward" data-msg-body="${safeBodyAttr}">➡️ تحويل</button>
+          </div>
         </div>`;
       }).join("");
       convLastItemsCount = items.length;
@@ -2263,6 +2345,94 @@
       });
     })();
 
+    // ── Reply state (quote a specific message in next send) ──────────────
+    let replyingTo = null;   // { body, sender }
+    function startReply(senderLabel, body) {
+      replyingTo = { body: body || "", sender: senderLabel || "" };
+      const preview = $("reply-preview");
+      $("reply-preview-sender").textContent = "↪️ رد على " + (senderLabel || "");
+      $("reply-preview-body").textContent = (body || "").slice(0, 120);
+      preview.style.display = "flex";
+      $("conv-input").focus();
+    }
+    function cancelReply() {
+      replyingTo = null;
+      const preview = $("reply-preview");
+      if (preview) preview.style.display = "none";
+    }
+    $("reply-preview-cancel").addEventListener("click", cancelReply);
+
+    // ── Forward state (send a chosen message to another conversation) ────
+    let forwardingBody = "";
+    function openForwardModal(body) {
+      forwardingBody = body || "";
+      $("forward-original-preview").textContent = forwardingBody.slice(0, 400);
+      $("forward-search").value = "";
+      renderForwardList("");
+      $("forward-overlay").style.display = "grid";
+    }
+    function closeForwardModal() {
+      $("forward-overlay").style.display = "none";
+      forwardingBody = "";
+    }
+    function renderForwardList(query) {
+      const q = (query || "").trim().toLowerCase();
+      const list = $("forward-list");
+      const filtered = conversationsCache.filter(c => {
+        if (c.phone === convPhone) return false;   // exclude current conversation
+        if (!q) return true;
+        const name = (c.profile_name || "").toLowerCase();
+        const ph = (c.phone || "").toLowerCase();
+        return name.includes(q) || ph.includes(q);
+      });
+      if (!filtered.length) {
+        list.innerHTML = '<div class="empty" style="padding:14px;">ولا محادثة مطابقة</div>';
+        return;
+      }
+      list.innerHTML = filtered.slice(0, 30).map(c => {
+        const ph = fmtPhone(c.phone);
+        return `<div class="row forward-target" data-phone="${escapeHtml(c.phone)}" style="cursor:pointer; padding:10px 14px; border-bottom:1px solid var(--border);">
+          <div class="label-text" style="flex:1;">
+            <div class="primary">${escapeHtml(c.profile_name || ph)}</div>
+            <div class="secondary">${escapeHtml(ph)}</div>
+          </div>
+        </div>`;
+      }).join("");
+      list.querySelectorAll(".forward-target").forEach(el => {
+        el.addEventListener("click", () => doForward(el.dataset.phone));
+      });
+    }
+    async function doForward(phone) {
+      if (!phone || !forwardingBody) return;
+      try {
+        const res = await fetch(BASE + "?admin_action=send_admin_message", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, body: forwardingBody, sent_by: "admin" }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        closeForwardModal();
+        alert("✓ تم تحويل الرسالة");
+      } catch (e) {
+        alert("فشل التحويل: " + e.message);
+      }
+    }
+    $("forward-cancel").addEventListener("click", closeForwardModal);
+    $("forward-search").addEventListener("input", (e) => renderForwardList(e.target.value));
+
+    // ── Click delegation on conv-body for reply/forward action buttons ───
+    $("conv-body").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-msg-action]");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const action = btn.dataset.msgAction;
+      const body = btn.dataset.msgBody || "";
+      const sender = btn.dataset.msgSender || "";
+      if (action === "reply") startReply(sender, body);
+      else if (action === "forward") openForwardModal(body);
+    });
+
     // Enter يرسل، Shift+Enter ينزل سطر جديد
     $("conv-input").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
@@ -2273,22 +2443,31 @@
     $("conv-send").addEventListener("click", async () => {
       const text = $("conv-input").value.trim();
       if (!text || !convPhone) return;
+      // إذا في reply نشط، رفع quote header قبل النص
+      let outgoing = text;
+      if (replyingTo && replyingTo.body) {
+        const quoted = replyingTo.body
+          .split("\n").slice(0, 4)
+          .map(l => "> " + l).join("\n");
+        outgoing = quoted + "\n\n" + text;
+      }
       const btn = $("conv-send"); btn.disabled = true;
       try {
         const res = await fetch(BASE + "?admin_action=send_admin_message", {
           method: "POST",
           headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: convPhone, body: text, sent_by: "admin" }),
+          body: JSON.stringify({ phone: convPhone, body: outgoing, sent_by: "admin" }),
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         $("conv-input").value = "";
+        cancelReply();   // مسح حالة الرد بعد الإرسال
         // Twilio takes a second to register the outbound. Optimistically add
         // it to the timeline immediately, then refresh after a short delay
         // to pick up the real Twilio SID.
         const body = $("conv-body");
         const optimistic = document.createElement("div");
         optimistic.className = "conv-msg bot admin";
-        optimistic.innerHTML = `<span class="sender-pill">Admin</span><div class="bubble">${escapeHtml(text)}</div><div class="meta">جاري الإرسال…</div>`;
+        optimistic.innerHTML = `<span class="sender-pill">Admin</span><div class="bubble">${escapeHtml(outgoing)}</div><div class="meta">جاري الإرسال…</div>`;
         body.appendChild(optimistic);
         body.scrollTop = body.scrollHeight;
         setTimeout(() => loadConversationHistory(), 4000);
