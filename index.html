@@ -832,6 +832,31 @@
     </div>
   </div>
 
+  <!-- Defensive boot: force light background + hide every dark overlay
+       on every page load. Belt-and-suspenders for the "dashboard appears
+       dark" report — any overlay that gets stuck visible across reloads
+       (cached state, hot-reload glitch) now starts hidden. -->
+  <script>
+    (function defensiveBoot() {
+      try {
+        document.documentElement.style.background = "#ffffff";
+        document.documentElement.style.colorScheme = "light";
+        const hideIds = ["auth-overlay", "conv-overlay", "image-lightbox",
+          "dest-editor-overlay", "ai-stop-overlay", "ai-start-overlay",
+          "emoji-picker-wrap"];
+        const apply = () => {
+          if (document.body) document.body.style.background = "#ffffff";
+          hideIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = "none";
+          });
+        };
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", apply);
+        } else { apply(); }
+      } catch (_) {}
+    })();
+  </script>
   <!-- Global error surface — any uncaught JS error or unhandled promise
        rejection paints a visible amber bar at the top instead of leaving
        the page silently broken. Catches the kind of TDZ / typo bug that
