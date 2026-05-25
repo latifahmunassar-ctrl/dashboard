@@ -1830,11 +1830,20 @@
         const lastOpen = c.last_opened_at ? new Date(c.last_opened_at).getTime() : 0;
         const isUnread = lastIn > 0 && lastOpen < lastIn;
         const unreadRow = isUnread ? " unread-row" : "";
-        // WhatsApp-style preview line — latest inbound message body
-        const previewRaw = (c.last_message_body || "").trim();
+        // WhatsApp-style preview line — يعرض أحدث رسالة سواء كانت من
+        // العميل أو من الموظف/الإدمن/البوت. السطر يحمل الـ prefix:
+        //   💬  لرسالة العميل (inbound)
+        //   ↩️  لرد الموظف/الإدمن/البوت (outbound)
+        const outBody = (c.last_outbound_body || "").trim();
+        const lastOutT = c.last_outbound_at ? new Date(c.last_outbound_at).getTime() : 0;
+        const previewIsOutbound = lastOutT > lastIn && outBody.length > 0;
+        const previewRaw = previewIsOutbound
+          ? outBody
+          : (c.last_message_body || "").trim();
         const previewTrunc = previewRaw.length > 90 ? previewRaw.slice(0, 90) + "…" : previewRaw;
+        const previewPrefix = previewIsOutbound ? "↩️" : "💬";
         const previewLine = previewTrunc
-          ? `<span class="conv-preview">💬 ${escapeHtml(previewTrunc)}</span>`
+          ? `<span class="conv-preview">${previewPrefix} ${escapeHtml(previewTrunc)}</span>`
           : "";
         // Dedicated assigned-staff line — مطلوب للمراقبين فقط (CSS أدناه
         // يخفيه في وضع الإدمن/المبيعات). الإدمن لازال يشوف نفس الـ
