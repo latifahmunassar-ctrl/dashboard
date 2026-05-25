@@ -858,8 +858,17 @@
         </div>
         <button type="button" id="reply-preview-cancel" title="إلغاء الردّ">✕</button>
       </div>
+      <!-- Attachment preview shows when a file is selected -->
+      <div id="attach-preview" style="display:none; padding:10px 16px; background:#eff6ff; border-top:1px solid #f5f5f5; font-size:13px; color:#1e40af; display:none; align-items:center; gap:8px;">
+        <span id="attach-icon">📎</span>
+        <span id="attach-name" style="flex:1; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">file.pdf</span>
+        <span id="attach-size" style="font-size:11px; color:#64748b;">0 KB</span>
+        <button type="button" id="attach-cancel" style="background:transparent; border:none; color:#dc2626; cursor:pointer; font-size:18px;" title="إزالة">✕</button>
+      </div>
       <div class="conv-footer">
         <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
+        <input type="file" id="attach-input" accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" />
+        <button type="button" id="attach-btn" title="إرفاق ملف (صورة/PDF/فيديو، حد أقصى 5MB)" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">📎</button>
         <button type="button" id="emoji-btn" title="إضافة إيموجي" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">😊</button>
         <button id="conv-send">إرسال</button>
         <div id="emoji-picker-wrap" style="display:none; position:absolute; bottom:60px; left:10px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.18); border-radius:12px; overflow:hidden;">
@@ -2366,6 +2375,63 @@
       });
     })();
 
+    // ── File attachment state ────────────────────────────────────────────
+    // Stores the uploaded URL returned by the function's upload_media
+    // endpoint. Sent alongside the next text in send_admin_message as
+    // `media_url`. Cleared on successful send or ✕ click.
+    let attachedMedia = null;   // { url, name, content_type, size }
+    function showAttachPreview() {
+      const el = $("attach-preview");
+      if (!el) return;
+      if (!attachedMedia) { el.style.display = "none"; return; }
+      el.style.display = "flex";
+      const ct = attachedMedia.content_type || "";
+      $("attach-icon").textContent = ct.startsWith("image/") ? "🖼️"
+        : ct.startsWith("video/") ? "🎥"
+        : ct.startsWith("audio/") ? "🎤"
+        : ct === "application/pdf" ? "📄"
+        : "📎";
+      $("attach-name").textContent = attachedMedia.name || "ملف";
+      const kb = Math.max(1, Math.round((attachedMedia.size || 0) / 1024));
+      $("attach-size").textContent = kb < 1024 ? kb + " KB" : (kb/1024).toFixed(1) + " MB";
+    }
+    function clearAttachment() {
+      attachedMedia = null;
+      $("attach-input").value = "";
+      showAttachPreview();
+    }
+    $("attach-btn").addEventListener("click", () => $("attach-input").click());
+    $("attach-cancel").addEventListener("click", clearAttachment);
+    $("attach-input").addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert("الملف أكبر من 5MB — WhatsApp ما يقبل أكبر من هالحد");
+        $("attach-input").value = "";
+        return;
+      }
+      // Show optimistic preview while uploading
+      attachedMedia = { url: "", name: file.name, content_type: file.type, size: file.size };
+      showAttachPreview();
+      $("attach-icon").textContent = "⏳";
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(BASE + "?admin_action=upload_media", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.url) throw new Error(data.error || "HTTP " + res.status);
+        attachedMedia = { url: data.url, name: file.name, content_type: data.content_type || file.type, size: data.size || file.size };
+        showAttachPreview();
+      } catch (err) {
+        alert("فشل رفع الملف: " + err.message);
+        clearAttachment();
+      }
+    });
+
     // ── Reply state (quote a specific message in next send) ──────────────
     let replyingTo = null;   // { body, sender }
     function startReply(senderLabel, body) {
@@ -2463,32 +2529,40 @@
     });
     $("conv-send").addEventListener("click", async () => {
       const text = $("conv-input").value.trim();
-      if (!text || !convPhone) return;
+      const media = attachedMedia && attachedMedia.url ? attachedMedia : null;
+      // Need at least text OR media to send
+      if ((!text && !media) || !convPhone) return;
       // إذا في reply نشط، رفع quote header قبل النص
       let outgoing = text;
       if (replyingTo && replyingTo.body) {
         const quoted = replyingTo.body
           .split("\n").slice(0, 4)
           .map(l => "> " + l).join("\n");
-        outgoing = quoted + "\n\n" + text;
+        outgoing = (quoted + "\n\n" + text).trim();
       }
       const btn = $("conv-send"); btn.disabled = true;
       try {
+        const payload = { phone: convPhone, body: outgoing, sent_by: "admin" };
+        if (media) payload.media_url = media.url;
         const res = await fetch(BASE + "?admin_action=send_admin_message", {
           method: "POST",
           headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: convPhone, body: outgoing, sent_by: "admin" }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         $("conv-input").value = "";
-        cancelReply();   // مسح حالة الرد بعد الإرسال
+        cancelReply();
+        clearAttachment();
         // Twilio takes a second to register the outbound. Optimistically add
         // it to the timeline immediately, then refresh after a short delay
         // to pick up the real Twilio SID.
         const body = $("conv-body");
         const optimistic = document.createElement("div");
         optimistic.className = "conv-msg bot admin";
-        optimistic.innerHTML = `<span class="sender-pill">Admin</span><div class="bubble">${escapeHtml(outgoing)}</div><div class="meta">جاري الإرسال…</div>`;
+        const mediaTag = media
+          ? `<div style="margin-top:4px;">📎 ${escapeHtml(media.name)}</div>`
+          : "";
+        optimistic.innerHTML = `<span class="sender-pill">Admin</span><div class="bubble">${escapeHtml(outgoing)}${mediaTag}</div><div class="meta">جاري الإرسال…</div>`;
         body.appendChild(optimistic);
         body.scrollTop = body.scrollHeight;
         setTimeout(() => loadConversationHistory(), 4000);
