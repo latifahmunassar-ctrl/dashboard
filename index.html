@@ -15,8 +15,8 @@
       color-scheme: light only;  /* prevents browser auto-dark on iOS/macOS Safari */
       --bg: #ffffff;             /* page background — pure white */
       --panel: #ffffff;          /* default panel/card surface — white */
-      --panel-2: #f1f5f9;        /* secondary surface (inputs, code, hovers) */
-      --border: #e2e8f0;         /* hairlines */
+      --panel-2: #ffffff;        /* keep secondary surfaces white too */
+      --border: #f5f5f5;         /* very light grey — borders only */
       --text: #0f172a;           /* primary text — dark navy, high contrast */
       --muted: #475569;          /* secondary text — slate-600 for clarity */
       --accent: #0284c7;
@@ -36,12 +36,18 @@
       border-radius: 14px;
       margin-top: 22px;
     }
-    section:has(.grid.cols-5)        { background: #f8fafc; }  /* stats — neutral */
-    section:has(#staff-list)         { background: #faf5ff; }  /* violet */
-    section:has(#rules-list)         { background: #f0fdf4; }  /* green  */
-    section:has(#filter-urgent)      { background: #fffbeb; }  /* amber  */
-    section:has(#conversations-list) { background: #f0f9ff; }  /* sky    */
-    section:has(#proposals-list)     { background: #fef2f2; }  /* rose   */
+    /* All sections pure white; subtle border distinguishes them */
+    section:has(.grid.cols-5),
+    section:has(#staff-list),
+    section:has(#rules-list),
+    section:has(#filter-urgent),
+    section:has(#conversations-list),
+    section:has(#proposals-list),
+    section:has(#complaints-list),
+    section:has(#account-form) {
+      background: #ffffff;
+      border: 1px solid #f5f5f5;
+    }
 
     /* Staff mode hides admin-only sections: AI master switch, staff
        roster CRUD, routing-rules CRUD. Staff still see stats, filters,
@@ -152,7 +158,7 @@
       font-weight: 800; font-family: inherit; color: var(--text);
       font-size: 14px; transition: all 0.15s;
     }
-    .tab-btn:hover { background: #f3f4f6; }
+    .tab-btn:hover { background: #f5f5f5; }
     .tab-btn.active {
       background: var(--accent); color: white;
       border-color: var(--accent);
@@ -304,10 +310,11 @@
       padding: 8px 12px; border-radius: 12px; word-break: break-word; white-space: pre-wrap;
       font-size: 14px;
     }
-    .conv-msg.customer .bubble { background: var(--panel-2); border: 1px solid var(--border); }
-    .conv-msg.bot.ai .bubble { background: rgba(56,189,248,.18); border: 1px solid rgba(56,189,248,.35); }
-    .conv-msg.bot.admin .bubble { background: rgba(168,85,247,.18); border: 1px solid rgba(168,85,247,.4); }
-    .conv-msg.bot.staff .bubble { background: rgba(34,197,94,.16); border: 1px solid rgba(34,197,94,.35); }
+    /* All bubbles pure white; sender distinguished by colored side stripe */
+    .conv-msg.customer .bubble { background: #ffffff; border: 1px solid #f5f5f5; border-right: 3px solid #94a3b8; }
+    .conv-msg.bot.ai     .bubble { background: #ffffff; border: 1px solid #f5f5f5; border-right: 3px solid #0ea5e9; }
+    .conv-msg.bot.admin  .bubble { background: #ffffff; border: 1px solid #f5f5f5; border-right: 3px solid #a855f7; }
+    .conv-msg.bot.staff  .bubble { background: #ffffff; border: 1px solid #f5f5f5; border-right: 3px solid #22c55e; }
     .conv-msg .meta {
       font-size: 11px; color: var(--muted); margin-top: 3px; direction: ltr;
     }
@@ -584,7 +591,7 @@
           <select id="dest-editor-add" class="filter-select" style="min-width:200px;"></select>
           <button type="button" id="dest-editor-clear" class="filter-btn" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">🌐 الكل</button>
         </div>
-        <div id="dest-editor-chips" class="dest-chips" style="margin-bottom:18px; padding:8px; background:#f8fafc; border-radius:8px; border:1px solid #e5e7eb;"></div>
+        <div id="dest-editor-chips" class="dest-chips" style="margin-bottom:18px; padding:8px; background:#ffffff; border-radius:8px; border:1px solid #f5f5f5;"></div>
         <div style="display:flex; gap:8px; justify-content:flex-end;">
           <button id="dest-editor-cancel" style="padding:10px 16px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit;">إلغاء</button>
           <button id="dest-editor-save" style="padding:10px 20px; background:var(--accent); color:white; border:none; border-radius:8px; font-weight:800; cursor:pointer; font-family:inherit;">حفظ</button>
