@@ -9,8 +9,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
   <!-- Emoji picker (web component) — يستخدم داخل نافذة المحادثة -->
   <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+  <meta name="color-scheme" content="light">
   <style>
     :root {
+      color-scheme: light only;  /* prevents browser auto-dark on iOS/macOS Safari */
       --bg: #ffffff;             /* page background — pure white */
       --panel: #ffffff;          /* default panel/card surface — white */
       --panel-2: #f1f5f9;        /* secondary surface (inputs, code, hovers) */
@@ -163,7 +165,14 @@
     body.admin-users-tab section.users-section { display: block; }
 
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: "Tajawal", system-ui, sans-serif; font-weight: 700; }
+    html, body {
+      margin: 0; padding: 0;
+      background: #ffffff;   /* explicit white — fallback if var(--bg) ever fails */
+      color: #0f172a;        /* explicit dark text — fallback if var(--text) fails */
+      font-family: "Tajawal", system-ui, sans-serif;
+      font-weight: 700;
+    }
+    html, body { background: var(--bg, #ffffff); color: var(--text, #0f172a); }
     .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
     header.hero {
       display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -823,6 +832,26 @@
     </div>
   </div>
 
+  <!-- Global error surface — any uncaught JS error or unhandled promise
+       rejection paints a visible amber bar at the top instead of leaving
+       the page silently broken. Catches the kind of TDZ / typo bug that
+       would otherwise show as "stuck on جاري التحميل" with no clue. -->
+  <script>
+    (function installErrorOverlay() {
+      function show(msg) {
+        let el = document.getElementById("__global_err__");
+        if (!el) {
+          el = document.createElement("div");
+          el.id = "__global_err__";
+          el.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#fef3c7;color:#7c2d12;border-bottom:2px solid #f59e0b;padding:10px 18px;font-family:system-ui,sans-serif;font-weight:700;font-size:13px;direction:rtl;text-align:right;box-shadow:0 4px 12px rgba(0,0,0,.18);";
+          (document.body || document.documentElement).appendChild(el);
+        }
+        el.textContent = "⚠️ خطأ في الواجهة: " + msg + "  — Cmd+Shift+R لإعادة المحاولة";
+      }
+      window.addEventListener("error", (e) => { show((e.error && e.error.message) || e.message || "unknown"); });
+      window.addEventListener("unhandledrejection", (e) => { show((e.reason && e.reason.message) || String(e.reason || "unhandledrejection")); });
+    })();
+  </script>
   <script>
     const BASE = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/WhatsApp-Router";
     const ENDPOINT = BASE + "?admin_action=dashboard_data";
