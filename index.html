@@ -1703,12 +1703,39 @@
     document.addEventListener("click", warmUpAudio, { once: true });
     document.addEventListener("keydown", warmUpAudio, { once: true });
     document.addEventListener("touchstart", warmUpAudio, { once: true, passive: true });
-    function playMessageSound() {
-      if (notificationsMuted) return;
+    // Always plays — bypasses notificationsMuted. Used as the click
+    // feedback for the 🔔/🔕 button so the admin always hears
+    // confirmation regardless of state.
+    function playFeedbackTone(freq) {
       const ctx = getAudioCtx();
-      if (!ctx) return;
+      if (!ctx) { console.warn("[sound] no AudioContext"); return; }
       try {
         if (ctx.state === "suspended") ctx.resume();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        osc.connect(gain); gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.18, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        osc.start(now);
+        osc.stop(now + 0.22);
+      } catch (e) { console.warn("[sound] feedback failed", e); }
+    }
+    function playMessageSound() {
+      if (notificationsMuted) {
+        console.log("[sound] skipped — muted");
+        return;
+      }
+      const ctx = getAudioCtx();
+      if (!ctx) { console.warn("[sound] no AudioContext"); return; }
+      try {
+        if (ctx.state === "suspended") {
+          ctx.resume();
+          console.log("[sound] context resumed");
+        }
         const now = ctx.currentTime;
         const beep = (freq, start, dur, vol) => {
           const osc = ctx.createOscillator();
@@ -1725,7 +1752,8 @@
         // Two ascending tones — short "ding-ding" similar to WhatsApp
         beep(840, 0,    0.18, 0.18);
         beep(1100, 0.13, 0.22, 0.16);
-      } catch (_) { /* silent */ }
+        console.log("[sound] new-message chime played");
+      } catch (e) { console.warn("[sound] play failed", e); }
     }
     function checkForNewMessages(conversations) {
       let latest = 0;
@@ -1736,9 +1764,13 @@
       if (firstNotificationCheck) {
         firstNotificationCheck = false;
         lastNotifiedInboundAt = latest;
+        console.log("[sound] baseline set:", new Date(latest).toISOString());
         return;
       }
       if (latest > lastNotifiedInboundAt) {
+        console.log("[sound] new inbound detected — was",
+          new Date(lastNotifiedInboundAt).toISOString(), "→ now",
+          new Date(latest).toISOString());
         playMessageSound();
         lastNotifiedInboundAt = latest;
       }
@@ -1755,11 +1787,12 @@
       const muteBtn = $("mute-btn");
       if (muteBtn) {
         muteBtn.addEventListener("click", () => {
-          setMuted(!notificationsMuted);
-          if (!notificationsMuted) {
-            // التشغيل → نغمة قصيرة لتأكيد الصوت + warm-up للـ AudioContext
-            playMessageSound();
-          }
+          const wasMuted = notificationsMuted;
+          setMuted(!wasMuted);
+          // Always play feedback so admin gets immediate audible
+          // confirmation that audio is working. Higher pitch =
+          // unmute, lower = mute.
+          playFeedbackTone(wasMuted ? 1000 : 600);
         });
       }
     }
