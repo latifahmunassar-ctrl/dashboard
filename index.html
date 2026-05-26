@@ -819,6 +819,25 @@
     </footer>
   </div>
 
+  <!-- Inbox notification banner — يظهر للموظف لما يكون مو فاتح محادثة
+       وعنده محادثات بانتظار الرد. ضغطة عليه تفتح أول محادثة غير مقروءة،
+       ضغطة على ✕ تأجّله 5 دقائق. -->
+  <div id="inbox-notify" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9500; background:#ffffff; border:2px solid #f59e0b; border-radius:14px; padding:16px 22px; min-width:340px; max-width:90vw; box-shadow:0 12px 36px rgba(0,0,0,.20); cursor:pointer; font-family:inherit; direction:rtl;">
+    <button type="button" id="inbox-notify-close" title="إغلاق" style="position:absolute; top:8px; left:10px; background:transparent; border:none; cursor:pointer; font-size:20px; color:#b45309; padding:2px 8px; line-height:1;">✕</button>
+    <div style="font-weight:900; font-size:15px; color:#92400e; margin-bottom:8px; padding-left:24px;">
+      ⚠️ تنبيه: عندك محادثات بانتظار الرد
+    </div>
+    <div id="inbox-notify-unread" style="display:none; font-weight:800; font-size:13px; color:#1e40af; margin-bottom:4px;">
+      🔵 <span class="cnt">0</span> محادثات غير مقروءة
+    </div>
+    <div id="inbox-notify-pending" style="display:none; font-weight:800; font-size:13px; color:#b45309; margin-bottom:4px;">
+      ⏳ <span class="cnt">0</span> محادثات شفتيها لكن ما رددتي عليها
+    </div>
+    <div style="font-size:11px; color:var(--muted); font-weight:700; margin-top:6px;">
+      اضغطي على التنبيه لفتح أول محادثة
+    </div>
+  </div>
+
   <!-- Forward modal — اختاري محادثة لتحويل الرسالة لها -->
   <div class="auth-overlay" id="forward-overlay" style="display:none; z-index:10001;">
     <div class="auth-card" style="text-align:right; max-width:540px;">
@@ -934,7 +953,7 @@
         document.documentElement.style.colorScheme = "light";
         const hideIds = ["auth-overlay", "conv-overlay", "image-lightbox",
           "dest-editor-overlay", "ai-stop-overlay", "ai-start-overlay",
-          "emoji-picker-wrap"];
+          "emoji-picker-wrap", "inbox-notify", "forward-overlay"];
         const apply = () => {
           if (document.body) document.body.style.background = "#ffffff";
           hideIds.forEach(id => {
@@ -1801,7 +1820,118 @@
       conversationsCache = arr;
       checkForNewMessages(arr);
       applyConversationsFilter();
+      maybeShowInboxNotification();
     }
+
+    // ── Inbox notification banner (every 5 min when idle) ────────────────
+    // counts:
+    //   unread     = customer's last message hasn't been opened
+    //                (last_opened_at < last_inbound_at, or null)
+    //   pendingRep = staff opened the chat but didn't reply
+    //                (last_opened_at >= last_inbound_at AND
+    //                 last_outbound_at < last_inbound_at)
+    // Scope to the user's own conversations: monitor → complaint-linked
+    // only, sales → matching destinations or assigned to me, admin → all.
+    let lastInboxDismissAt = 0;
+    function isUserScopeConversation(c) {
+      // Monitor — only conversations that have a complaint row
+      if (document.body.classList.contains("monitor-mode")) {
+        return complaintsCache.some(x => x.customer_phone === c.phone);
+      }
+      // Sales — apply the same destinations / assigned-to-me rule used
+      // by applyConversationsFilter.
+      if (document.body.classList.contains("staff-mode") && me && Array.isArray(me.destinations) && me.destinations.length) {
+        const myDest = new Set(me.destinations.map(d => d.trim().toLowerCase()));
+        const dest = (c.destination || "").trim().toLowerCase();
+        const assignedToMe = c.assigned_staff_phone === me.phone;
+        if (!assignedToMe && (!dest || !myDest.has(dest))) return false;
+      }
+      return true;
+    }
+    function computeInboxCounts() {
+      let unread = 0, pendingRep = 0;
+      let firstUnreadPhone = null, firstUnreadName = null;
+      let firstPendingPhone = null, firstPendingName = null;
+      for (const c of conversationsCache) {
+        if (!isUserScopeConversation(c)) continue;
+        const lin = c.last_inbound_at ? new Date(c.last_inbound_at).getTime() : 0;
+        const lop = c.last_opened_at ? new Date(c.last_opened_at).getTime() : 0;
+        const lout = c.last_outbound_at ? new Date(c.last_outbound_at).getTime() : 0;
+        if (lin === 0) continue;   // no inbound = nothing to do
+        const isUnread = lop < lin;
+        const isPendingReply = !isUnread && lout < lin;
+        if (isUnread) {
+          unread++;
+          if (!firstUnreadPhone) {
+            firstUnreadPhone = c.phone;
+            firstUnreadName = c.profile_name || c.phone;
+          }
+        } else if (isPendingReply) {
+          pendingRep++;
+          if (!firstPendingPhone) {
+            firstPendingPhone = c.phone;
+            firstPendingName = c.profile_name || c.phone;
+          }
+        }
+      }
+      return { unread, pendingRep, firstUnreadPhone, firstUnreadName, firstPendingPhone, firstPendingName };
+    }
+    function maybeShowInboxNotification() {
+      const banner = $("inbox-notify");
+      if (!banner) return;
+      // Hide while a conversation is open — staff is busy. conv-overlay
+      // is display:"grid" when open, "none" when closed.
+      const convOverlayDisplay = $("conv-overlay").style.display;
+      if (convOverlayDisplay && convOverlayDisplay !== "none") {
+        banner.style.display = "none";
+        return;
+      }
+      // 5-min cooldown after dismiss
+      const FIVE_MIN = 5 * 60 * 1000;
+      if (Date.now() - lastInboxDismissAt < FIVE_MIN) {
+        banner.style.display = "none";
+        return;
+      }
+      const c = computeInboxCounts();
+      if (c.unread === 0 && c.pendingRep === 0) {
+        banner.style.display = "none";
+        return;
+      }
+      const u = $("inbox-notify-unread");
+      const p = $("inbox-notify-pending");
+      if (c.unread > 0) {
+        u.style.display = "block";
+        u.querySelector(".cnt").textContent = c.unread;
+      } else u.style.display = "none";
+      if (c.pendingRep > 0) {
+        p.style.display = "block";
+        p.querySelector(".cnt").textContent = c.pendingRep;
+      } else p.style.display = "none";
+      // remember which to jump to on click — prefer unread, fall back to pending
+      banner.dataset.jumpPhone = c.firstUnreadPhone || c.firstPendingPhone || "";
+      banner.dataset.jumpName = c.firstUnreadName || c.firstPendingName || "";
+      banner.style.display = "block";
+    }
+    // Click the banner → open the first relevant conversation
+    $("inbox-notify").addEventListener("click", (e) => {
+      // Ignore clicks on the ✕ button (handled separately)
+      if (e.target.id === "inbox-notify-close") return;
+      const banner = $("inbox-notify");
+      const phone = banner.dataset.jumpPhone;
+      const name = banner.dataset.jumpName || phone;
+      if (!phone) return;
+      banner.style.display = "none";
+      lastInboxDismissAt = Date.now();   // re-arm 5-min cooldown
+      openConversation(phone, name);
+    });
+    // ✕ button → dismiss + start 5-min cooldown
+    $("inbox-notify-close").addEventListener("click", (e) => {
+      e.stopPropagation();
+      $("inbox-notify").style.display = "none";
+      lastInboxDismissAt = Date.now();
+    });
+    // Re-evaluate every minute even when no refresh happens (just in case)
+    setInterval(maybeShowInboxNotification, 60 * 1000);
 
     function renderConversationRows(arr) {
       const list = $("conversations-list");
