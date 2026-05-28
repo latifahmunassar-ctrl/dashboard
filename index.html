@@ -659,8 +659,8 @@
       <div class="filter-bar" style="margin-bottom:8px; flex-wrap:wrap;">
         <span class="filter-label">الفترة</span>
         <select id="filter-range-select" class="filter-select">
-          <option value="today" selected>اليوم</option>
-          <option value="week">الأسبوع</option>
+          <option value="today">اليوم</option>
+          <option value="week" selected>الأسبوع</option>
           <option value="month">الشهر</option>
           <option value="all">الكل</option>
           <option value="custom">مخصّص</option>
@@ -993,7 +993,7 @@
 
     // فلاتر الفترة + رقم العميل — تنطبق على قسم المحادثات.
     // نبني URL ديناميكي ثم نمرّره لـ fetch داخل refresh().
-    let filterRange = "today";       // today | week | month | all | custom
+    let filterRange = "week";        // today | week | month | all | custom
     let filterFrom = "";             // YYYY-MM-DD (custom only)
     let filterTo = "";               // YYYY-MM-DD (custom only)
     let filterCustomerPhone = "";
@@ -1937,9 +1937,15 @@
       const list = $("conversations-list");
       $("c-badge").textContent = arr.length;
       if (!arr.length) {
-        list.innerHTML = document.body.classList.contains("monitor-mode")
-          ? '<div class="empty">ولا محادثة عليها شكوى</div>'
-          : '<div class="empty">ما في محادثات مطابقة</div>';
+        if (document.body.classList.contains("monitor-mode")) {
+          list.innerHTML = '<div class="empty">ولا محادثة عليها شكوى</div>';
+        } else {
+          // Hint that the time-range filter may be hiding older chats.
+          const rangeHint = (filterRange === "today" || filterRange === "week")
+            ? '<div class="empty">ما في محادثات في هذي الفترة<br><span style="font-size:12px; color:var(--muted);">جرّبي تغيير <b>الفترة</b> فوق إلى «الشهر» أو «الكل» لعرض المحادثات الأقدم</span></div>'
+            : '<div class="empty">ما في محادثات مطابقة للفلاتر</div>';
+          list.innerHTML = rangeHint;
+        }
         return;
       }
       list.innerHTML = arr.map((c) => {
