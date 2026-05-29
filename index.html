@@ -176,6 +176,11 @@
     body.admin-users-tab section { display: none; }
     body.admin-users-tab .ai-toggle-card { display: none; }
     body.admin-users-tab section.users-section { display: block; }
+    /* "جهات الاتصال" — same pattern, its own tab. */
+    section.contacts-section { display: none; }
+    body.admin-contacts-tab section { display: none; }
+    body.admin-contacts-tab .ai-toggle-card { display: none; }
+    body.admin-contacts-tab section.contacts-section { display: block; }
 
     * { box-sizing: border-box; }
     html, body {
@@ -605,6 +610,7 @@
     <!-- Admin-only tab bar. Hidden in sales / monitor views. -->
     <nav class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="main">📊 الرئيسية</button>
+      <button class="tab-btn" data-tab="contacts">📇 جهات الاتصال</button>
       <button class="tab-btn" data-tab="users">👤 إدارة المستخدمين</button>
     </nav>
 
@@ -706,6 +712,18 @@
         <div class="card warn"><h2>proposals معلّقة</h2><div class="value" id="m-pending">—</div><div class="sub">تنتظر ردك</div></div>
         <div class="card err"><h2>stalled</h2><div class="value" id="m-stalled">—</div><div class="sub">فشل صامت</div></div>
         <div class="card err"><h2>أخطاء</h2><div class="value" id="m-errored">—</div></div>
+      </div>
+    </section>
+
+    <section class="contacts-section">
+      <h3>جهات الاتصال <span class="badge" id="contacts-badge">0</span></h3>
+      <div class="filter-bar" style="margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="contacts-search" placeholder="🔍 بحث بالاسم أو الرقم أو الوجهة…" style="flex:1; min-width:240px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-weight:600; font-size:13px;" />
+        <button class="filter-btn" id="contacts-export" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">⬇️ تصدير CSV</button>
+        <button class="filter-btn" id="contacts-refresh">↻ تحديث</button>
+      </div>
+      <div class="panel-list" id="contacts-list">
+        <div class="empty">اضغطي ↻ تحديث لتحميل جهات الاتصال</div>
       </div>
     </section>
 
@@ -1163,18 +1181,22 @@
       btn.addEventListener("click", () => {
         if (!token) { showAuth(); return; }
         const r = btn.dataset.roleSwitch;
-        document.body.classList.remove("admin-users-tab");
+        document.body.classList.remove("admin-users-tab", "admin-contacts-tab");
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === "main"));
         setSession(token, r);
         refresh();
       });
     });
-    // Admin tab bar — toggle "الرئيسية" vs "إدارة المستخدمين"
+    // Admin tab bar — toggle main / contacts / users views
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
-        document.body.classList.toggle("admin-users-tab", btn.dataset.tab === "users");
+        const tab = btn.dataset.tab;
+        document.body.classList.toggle("admin-users-tab", tab === "users");
+        document.body.classList.toggle("admin-contacts-tab", tab === "contacts");
+        // First time opening contacts → load them
+        if (tab === "contacts" && !contactsLoaded) loadContacts();
       });
     });
     function devEnter(role) {
@@ -1354,6 +1376,93 @@
       addFormDest = [];
       refreshAddFormDest();
     });
+
+    // ── Contacts tab — full customer directory ───────────────────────────
+    let contactsCache = [];
+    let contactsLoaded = false;
+    async function loadContacts() {
+      const list = $("contacts-list");
+      list.innerHTML = '<div class="empty">جاري التحميل…</div>';
+      try {
+        const res = await fetch(BASE + "?admin_action=list_contacts", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        contactsCache = data.contacts || [];
+        contactsLoaded = true;
+        renderContacts();
+      } catch (e) {
+        list.innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    function renderContacts() {
+      const q = ($("contacts-search").value || "").trim().toLowerCase();
+      const filtered = contactsCache.filter(c => {
+        if (!q) return true;
+        const name = (c.profile_name || "").toLowerCase();
+        const ph = (c.phone || "").toLowerCase();
+        const dest = (c.destination || "").toLowerCase();
+        return name.includes(q) || ph.includes(q) || dest.includes(q);
+      });
+      $("contacts-badge").textContent = filtered.length;
+      const list = $("contacts-list");
+      if (!filtered.length) {
+        list.innerHTML = '<div class="empty">ولا جهة اتصال مطابقة</div>';
+        return;
+      }
+      const typeLabel = {
+        NEW_CUSTOMER: "🆕 جديد", REPEAT_CUSTOMER: "🔁 متكرر",
+        VIP_CUSTOMER: "⭐ VIP", CORPORATE_BUSINESS: "🏢 شركة",
+        PARTNERSHIP: "🤝 شراكة",
+      };
+      list.innerHTML = filtered.map(c => {
+        const ph = fmtPhone(c.phone);
+        const ctype = c.customer_type ? (typeLabel[c.customer_type] || c.customer_type) : "";
+        const dest = c.destination ? `🌍 ${escapeHtml(c.destination)}` : "";
+        const staff = c.assigned_staff_phone ? `👤 ${escapeHtml(staffNameFor(c.assigned_staff_phone))}` : "👤 غير معيّن";
+        const meta = [dest, staff].filter(Boolean).join(" · ");
+        return `
+          <div class="row conv-clickable" data-action="open-contact" data-phone="${escapeHtml(c.phone)}" data-name="${escapeHtml(c.profile_name || ph)}">
+            <div class="label">
+              <span class="dot ok"></span>
+              <div class="label-text">
+                <span class="primary">${escapeHtml(c.profile_name || ph)} ${ctype ? `<span style="font-size:11px; color:var(--muted);">${ctype}</span>` : ""}</span>
+                <span class="secondary">${escapeHtml(ph)}${meta ? " · " + meta : ""}</span>
+              </div>
+            </div>
+            <div class="meta">${c.last_message_at ? fmtTime(c.last_message_at) : ""}</div>
+          </div>`;
+      }).join("");
+      list.querySelectorAll("[data-action=open-contact]").forEach(el => {
+        el.addEventListener("click", () => openConversation(el.dataset.phone, el.dataset.name));
+      });
+    }
+    function exportContactsCsv() {
+      if (!contactsCache.length) { alert("ما في جهات اتصال للتصدير"); return; }
+      const rows = [["الاسم", "الرقم", "الوجهة", "النوع", "الموظف المسؤول", "آخر نشاط"]];
+      for (const c of contactsCache) {
+        rows.push([
+          c.profile_name || "",
+          fmtPhone(c.phone),
+          c.destination || "",
+          c.customer_type || "",
+          c.assigned_staff_phone ? staffNameFor(c.assigned_staff_phone) : "",
+          c.last_message_at || "",
+        ]);
+      }
+      const csv = rows.map(r => r.map(f => `"${String(f).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `alezz_contacts_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    $("contacts-search").addEventListener("input", renderContacts);
+    $("contacts-refresh").addEventListener("click", loadContacts);
+    $("contacts-export").addEventListener("click", exportContactsCsv);
 
     async function addStaff() {
       const name = $("staff-name").value.trim();
