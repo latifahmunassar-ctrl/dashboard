@@ -719,6 +719,9 @@
       <h3>جهات الاتصال <span class="badge" id="contacts-badge">0</span></h3>
       <div class="filter-bar" style="margin-bottom:10px; gap:8px; flex-wrap:wrap;">
         <input type="text" id="contacts-search" placeholder="🔍 بحث بالاسم أو الرقم أو الوجهة…" style="flex:1; min-width:240px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-weight:600; font-size:13px;" />
+        <select id="contacts-country" style="padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-weight:600; font-size:13px; background:#fff; cursor:pointer;">
+          <option value="">🌐 كل الدول</option>
+        </select>
         <button class="filter-btn" id="contacts-export" style="background:#dcfce7; color:#166534; border-color:#bbf7d0;">⬇️ تصدير CSV</button>
         <button class="filter-btn" id="contacts-refresh">↻ تحديث</button>
       </div>
@@ -1380,6 +1383,48 @@
     // ── Contacts tab — full customer directory ───────────────────────────
     let contactsCache = [];
     let contactsLoaded = false;
+
+    // مفاتيح الدول → الاسم العربي + العلم. مرتّبة لاحقاً بطول المفتاح (أطول تطابق أولاً).
+    const COUNTRY_CODES = [
+      ["966","السعودية","🇸🇦"], ["971","الإمارات","🇦🇪"], ["965","الكويت","🇰🇼"],
+      ["973","البحرين","🇧🇭"], ["974","قطر","🇶🇦"], ["968","عُمان","🇴🇲"],
+      ["967","اليمن","🇾🇪"], ["962","الأردن","🇯🇴"], ["961","لبنان","🇱🇧"],
+      ["963","سوريا","🇸🇾"], ["964","العراق","🇮🇶"], ["970","فلسطين","🇵🇸"],
+      ["20","مصر","🇪🇬"], ["218","ليبيا","🇱🇾"], ["216","تونس","🇹🇳"],
+      ["213","الجزائر","🇩🇿"], ["212","المغرب","🇲🇦"], ["249","السودان","🇸🇩"],
+      ["90","تركيا","🇹🇷"], ["98","إيران","🇮🇷"], ["91","الهند","🇮🇳"],
+      ["92","باكستان","🇵🇰"], ["880","بنغلاديش","🇧🇩"], ["62","إندونيسيا","🇮🇩"],
+      ["60","ماليزيا","🇲🇾"], ["63","الفلبين","🇵🇭"], ["66","تايلاند","🇹🇭"],
+      ["84","فيتنام","🇻🇳"], ["86","الصين","🇨🇳"], ["7","روسيا","🇷🇺"],
+      ["44","بريطانيا","🇬🇧"], ["33","فرنسا","🇫🇷"], ["49","ألمانيا","🇩🇪"],
+      ["1","أمريكا/كندا","🇺🇸"],
+    ];
+    const COUNTRY_BY_LEN = COUNTRY_CODES.slice().sort((a, b) => b[0].length - a[0].length);
+    function countryOf(phone) {
+      const digits = String(phone || "").replace(/^whatsapp:/, "").replace(/\D/g, "");
+      for (const [code, ar, flag] of COUNTRY_BY_LEN) {
+        if (digits.startsWith(code)) return { code, ar, flag };
+      }
+      return null;
+    }
+    function populateCountryFilter() {
+      const sel = $("contacts-country");
+      const prev = sel.value;
+      const counts = {};
+      for (const c of contactsCache) {
+        const co = countryOf(c.phone);
+        const key = co ? co.code : "__unknown";
+        counts[key] = (counts[key] || 0) + 1;
+      }
+      let html = `<option value="">🌐 كل الدول (${contactsCache.length})</option>`;
+      for (const [code, ar, flag] of COUNTRY_CODES.filter(([code]) => counts[code])
+        .sort((a, b) => counts[b[0]] - counts[a[0]])) {
+        html += `<option value="${code}">${flag} ${ar} (${counts[code]})</option>`;
+      }
+      if (counts["__unknown"]) html += `<option value="__unknown">❓ غير معروف (${counts["__unknown"]})</option>`;
+      sel.innerHTML = html;
+      if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    }
     async function loadContacts() {
       const list = $("contacts-list");
       list.innerHTML = '<div class="empty">جاري التحميل…</div>';
@@ -1391,6 +1436,7 @@
         const data = await res.json();
         contactsCache = data.contacts || [];
         contactsLoaded = true;
+        populateCountryFilter();
         renderContacts();
       } catch (e) {
         list.innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>`;
@@ -1398,7 +1444,13 @@
     }
     function renderContacts() {
       const q = ($("contacts-search").value || "").trim().toLowerCase();
+      const cc = $("contacts-country").value;
       const filtered = contactsCache.filter(c => {
+        if (cc) {
+          const co = countryOf(c.phone);
+          if (cc === "__unknown") { if (co) return false; }
+          else if (!co || co.code !== cc) return false;
+        }
         if (!q) return true;
         const name = (c.profile_name || "").toLowerCase();
         const ph = (c.phone || "").toLowerCase();
@@ -1419,9 +1471,11 @@
       list.innerHTML = filtered.map(c => {
         const ph = fmtPhone(c.phone);
         const ctype = c.customer_type ? (typeLabel[c.customer_type] || c.customer_type) : "";
+        const co = countryOf(c.phone);
+        const country = co ? `${co.flag} ${co.ar}` : "";
         const dest = c.destination ? `🌍 ${escapeHtml(c.destination)}` : "";
         const staff = c.assigned_staff_phone ? `👤 ${escapeHtml(staffNameFor(c.assigned_staff_phone))}` : "👤 غير معيّن";
-        const meta = [dest, staff].filter(Boolean).join(" · ");
+        const meta = [country, dest, staff].filter(Boolean).join(" · ");
         return `
           <div class="row conv-clickable" data-action="open-contact" data-phone="${escapeHtml(c.phone)}" data-name="${escapeHtml(c.profile_name || ph)}">
             <div class="label">
@@ -1440,11 +1494,13 @@
     }
     function exportContactsCsv() {
       if (!contactsCache.length) { alert("ما في جهات اتصال للتصدير"); return; }
-      const rows = [["الاسم", "الرقم", "الوجهة", "النوع", "الموظف المسؤول", "آخر نشاط"]];
+      const rows = [["الاسم", "الرقم", "الدولة", "الوجهة", "النوع", "الموظف المسؤول", "آخر نشاط"]];
       for (const c of contactsCache) {
+        const co = countryOf(c.phone);
         rows.push([
           c.profile_name || "",
           fmtPhone(c.phone),
+          co ? co.ar : "غير معروف",
           c.destination || "",
           c.customer_type || "",
           c.assigned_staff_phone ? staffNameFor(c.assigned_staff_phone) : "",
@@ -1461,6 +1517,7 @@
       URL.revokeObjectURL(url);
     }
     $("contacts-search").addEventListener("input", renderContacts);
+    $("contacts-country").addEventListener("change", renderContacts);
     $("contacts-refresh").addEventListener("click", loadContacts);
     $("contacts-export").addEventListener("click", exportContactsCsv);
 
