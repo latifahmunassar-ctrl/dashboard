@@ -908,7 +908,7 @@
       <div class="conv-footer">
         <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
         <input type="file" id="attach-input" accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" />
-        <button type="button" id="attach-btn" title="إرفاق ملف (صورة/PDF/فيديو، حد أقصى 5MB)" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">📎</button>
+        <button type="button" id="attach-btn" title="إرفاق ملف (صورة/PDF/فيديو، حد أقصى 100MB)" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">📎</button>
         <button type="button" id="emoji-btn" title="إضافة إيموجي" style="background:transparent; border:1px solid var(--border); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:18px;">😊</button>
         <button id="conv-send">إرسال</button>
         <div id="emoji-picker-wrap" style="display:none; position:absolute; bottom:60px; left:10px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.18); border-radius:12px; overflow:hidden;">
@@ -2741,8 +2741,8 @@
     $("attach-input").addEventListener("change", async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      if (file.size > 5 * 1024 * 1024) {
-        alert("الملف أكبر من 5MB — WhatsApp ما يقبل أكبر من هالحد");
+      if (file.size > 100 * 1024 * 1024) {
+        alert("الملف أكبر من 100MB — WhatsApp ما يقبل مستند أكبر من هالحد");
         $("attach-input").value = "";
         return;
       }
