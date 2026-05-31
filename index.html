@@ -800,8 +800,10 @@
         <div class="empty">جاري التحميل…</div>
         <div class="form-row" id="offer-form" style="flex-wrap:wrap; gap:8px; flex-direction:column; align-items:stretch;">
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
-            <input id="offer-category" list="offer-cat-list" placeholder="التصنيف / الزر (مثل: عمان)" />
-            <datalist id="offer-cat-list"></datalist>
+            <select id="offer-category" style="padding:8px; border:1px solid #d1d5db; border-radius:6px; font-weight:600;">
+              <option value="عمان">عمان</option>
+              <option value="السعودية">السعودية</option>
+            </select>
             <input id="offer-label" placeholder="اسم الوجهة (مثل: ماليزيا)" />
             <input type="file" id="offer-file" accept="application/pdf,.pdf,image/*,.doc,.docx,.xls,.xlsx" style="padding:6px;" />
           </div>
@@ -3025,6 +3027,8 @@
     });
 
     // ── مكتبة العروض ─────────────────────────────────────────────────────
+    // التصنيفات ثابتة: عمان والسعودية فقط (أزرار ثابتة في كل محادثة).
+    const OFFER_CATEGORIES = ["عمان", "السعودية"];
     let offersCache = [];
     let offersLoaded = false;
     let openOfferMenu = null;
@@ -3068,20 +3072,20 @@
       if (!list) return;
       const form = list.querySelector("#offer-form");
       const formHtml = form ? form.outerHTML : "";
-      const cats = [...new Set(offersCache.map(o => o.category))];
+      // التصنيفات الثابتة + أي تصنيف قديم متبقّي (عشان الأدمن يشوفه وينظّفه)
+      const extra = [...new Set(offersCache.map(o => o.category))].filter(c => !OFFER_CATEGORIES.includes(c));
+      const cats = [...OFFER_CATEGORIES, ...extra];
       const badge = $("o-badge"); if (badge) badge.textContent = offersCache.length;
       let rows = "";
       cats.forEach(cat => {
         const items = offersCache.filter(o => o.category === cat);
         rows += `<div style="font-weight:800; margin:10px 0 4px; color:#155e75;">📋 ${escapeHtml(cat)} <span style="color:var(--muted);font-weight:600;">(${items.length})</span></div>`;
-        rows += items.map(o => `<div class="row" style="display:flex; align-items:center; gap:8px; padding:6px 0;">
+        rows += items.length ? items.map(o => `<div class="row" style="display:flex; align-items:center; gap:8px; padding:6px 0;">
           <a href="${escapeHtml(o.file_url)}" target="_blank" rel="noopener" style="flex:1; font-weight:700; color:var(--text); text-decoration:none;">📄 ${escapeHtml(o.label)}</a>
           <button class="toggle-btn off" data-offer-del="${escapeHtml(o.id)}" style="min-width:auto;padding:6px 10px;">🗑️ حذف</button>
-        </div>`).join("");
+        </div>`).join("") : `<div style="color:var(--muted); font-size:12px; padding:2px 0 6px;">— لا عروض بعد —</div>`;
       });
-      list.innerHTML = (rows || '<div class="empty">ولا عرض مرفوع بعد</div>') + formHtml;
-      const dl = $("offer-cat-list");
-      if (dl) dl.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}"></option>`).join("");
+      list.innerHTML = rows + formHtml;
       bindOfferForm();
       list.querySelectorAll("[data-offer-del]").forEach(b =>
         b.addEventListener("click", () => deleteOffer(b.dataset.offerDel)));
@@ -3136,8 +3140,8 @@
       if (!bar) return;
       closeOfferMenu();
       bar.innerHTML = "";
-      const cats = [...new Set(offersCache.map(o => o.category))];
-      cats.forEach(cat => {
+      // أزرار ثابتة دائماً: عمان / السعودية فقط
+      OFFER_CATEGORIES.forEach(cat => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "offer-cat-btn";
@@ -3150,6 +3154,12 @@
           const menu = document.createElement("div");
           menu.className = "offer-menu";
           menu.dataset.cat = cat;
+          if (!items.length) {
+            const empty = document.createElement("div");
+            empty.style.cssText = "padding:10px 12px; color:#64748b; font-size:13px;";
+            empty.textContent = "لا توجد عروض في «" + cat + "» بعد";
+            menu.appendChild(empty);
+          }
           items.forEach(o => {
             const it = document.createElement("button");
             it.type = "button";
