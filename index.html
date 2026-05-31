@@ -691,6 +691,11 @@
       <h3>المحادثات <span class="badge" id="c-badge">0</span>
         <button id="newconv-btn" class="filter-btn" style="background:#dcfce7; color:#166534; border-color:#bbf7d0; font-weight:800; margin-right:8px;">➕ محادثة جديدة</button>
       </h3>
+      <!-- مؤشر الأمان: رسائل عملاء لم يكتمل التعامل معها (معلّقة/فاشلة) -->
+      <div id="review-banner" style="display:none; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:10px; padding:10px 14px; margin-bottom:10px; cursor:pointer; font-weight:800;">
+        ⚠️ <span id="review-count">0</span> رسالة تحتاج مراجعة — اضغطي للعرض
+      </div>
+      <div id="review-list" style="display:none; margin-bottom:10px;"></div>
       <!-- شريط الفلاتر — كل الفلاتر droplist لتوفير المساحة -->
       <div class="filter-bar" style="margin-bottom:8px; flex-wrap:wrap;">
         <span class="filter-label">الفترة</span>
@@ -3262,6 +3267,53 @@
       }
     });
 
+    // ── مؤشر «تحتاج مراجعة» (رسائل لم يكتمل التعامل معها) ──────────────────
+    let reviewCache = [];
+    function renderReview(list) {
+      reviewCache = Array.isArray(list) ? list : [];
+      const banner = $("review-banner");
+      const panel = $("review-list");
+      if (!banner) return;
+      if (!reviewCache.length) {
+        banner.style.display = "none";
+        if (panel) { panel.style.display = "none"; panel.innerHTML = ""; }
+        return;
+      }
+      $("review-count").textContent = reviewCache.length;
+      banner.style.display = "block";
+      const rows = reviewCache.map(m => {
+        const ph = String(m.from_phone || "").replace(/^whatsapp:/, "");
+        const txt = escapeHtml(String(m.body || "").slice(0, 80) || "(بدون نص)");
+        const t = (m.received_at || "").replace("T", " ").slice(0, 16);
+        const statusAr = m.status === "errored" ? "فشل المعالجة" : "لم يكتمل الرد";
+        return `<div class="row" style="display:flex; align-items:center; gap:8px; padding:8px; border:1px solid #fecaca; border-radius:8px; margin-bottom:6px; background:#fff;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:800;">${escapeHtml(ph)} <span style="font-size:11px; color:#b91c1c;">• ${statusAr}</span></div>
+            <div style="font-size:12px; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${txt} — ${t}</div>
+          </div>
+          <button class="filter-btn" data-review-open="${escapeHtml(m.from_phone)}" type="button">فتح</button>
+          <button class="filter-btn" data-review-done="${escapeHtml(m.from_phone)}" type="button" style="background:#dcfce7;color:#166534;border-color:#bbf7d0;">✓ تمت</button>
+        </div>`;
+      }).join("");
+      if (panel) panel.innerHTML = rows;
+      panel.querySelectorAll("[data-review-open]").forEach(b =>
+        b.addEventListener("click", () => {
+          const ph = b.dataset.reviewOpen;
+          const conv = (conversationsCache || []).find(c => c.phone === ph);
+          openConversation(ph, conv ? (conv.profile_name || ph) : ph);
+        }));
+      panel.querySelectorAll("[data-review-done]").forEach(b =>
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          try { await callApi("mark_message_reviewed", { phone: b.dataset.reviewDone }); refresh(); }
+          catch (e) { alert("فشل: " + e.message); b.disabled = false; }
+        }));
+    }
+    $("review-banner").addEventListener("click", () => {
+      const panel = $("review-list");
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+    });
+
     function applyProposalFilters() {
       // Counts merge proposals AND conversations so each option reflects
       // how many real items would match across both panels.
@@ -3549,6 +3601,7 @@
         renderRules(data.routing_rules || []);
         renderConversations(data.conversations || []);
         renderProposals(data.pending_proposals || []);
+        renderReview(data.unhandled || []);
         loadComplaints();
         $("now").textContent = fmtTime(data.generated_at);
       } catch (e) {
