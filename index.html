@@ -983,6 +983,10 @@
           <input id="newconv-template-sid" placeholder="Template ContentSid (HX…)" style="flex:1;" />
           <button id="newconv-template-save" class="filter-btn" type="button">حفظ</button>
         </div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <button id="newconv-template-create" class="filter-btn" type="button">✨ أنشئ قالب تلقائياً</button>
+          <button id="newconv-template-check" class="filter-btn" type="button">🔄 حالة الموافقة</button>
+        </div>
         <div id="newconv-template-status" style="font-size:12px; color:var(--muted); margin-top:4px;"></div>
       </details>
       <div id="newconv-error" style="color:var(--err); font-size:13px; min-height:16px;"></div>
@@ -3206,6 +3210,32 @@
         await callApi("set_greeting_template", { content_sid: sid });
         st.textContent = "✅ تم حفظ القالب";
       } catch (e) { st.textContent = "فشل الحفظ: " + e.message; }
+    });
+    $("newconv-template-create").addEventListener("click", async () => {
+      const st = $("newconv-template-status");
+      st.textContent = "⏳ جاري الإنشاء والإرسال للموافقة…";
+      try {
+        const res = await fetch(BASE + "?admin_action=create_greeting_template", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ category: "UTILITY" }),
+        });
+        const d = await res.json();
+        if (!res.ok || !d.ok) throw new Error(d.error || "HTTP " + res.status);
+        $("newconv-template-sid").value = d.content_sid || "";
+        st.textContent = "✅ تم الإنشاء — الحالة: " + (d.approval_status || "?") + " (يشتغل بعد موافقة Meta)";
+      } catch (e) { st.textContent = "فشل الإنشاء: " + e.message; }
+    });
+    $("newconv-template-check").addEventListener("click", async () => {
+      const st = $("newconv-template-status");
+      st.textContent = "⏳…";
+      try {
+        const res = await fetch(BASE + "?admin_action=template_status", { headers: { Authorization: "Bearer " + token } });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "HTTP " + res.status);
+        const map = { received: "قيد المراجعة", pending: "قيد المراجعة", approved: "✅ معتمد", rejected: "❌ مرفوض", unknown: "غير معروف", none: "لا يوجد قالب" };
+        st.textContent = "الحالة: " + (map[d.status] || d.status || "?") + (d.rejection_reason ? " — السبب: " + d.rejection_reason : "");
+      } catch (e) { st.textContent = "فشل: " + e.message; }
     });
     $("newconv-send").addEventListener("click", async () => {
       const phone = $("newconv-phone").value.trim();
