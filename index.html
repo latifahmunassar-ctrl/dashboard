@@ -159,6 +159,8 @@
     }
     body.staff-mode .tab-bar,
     body.monitor-mode .tab-bar { display: none; }
+    /* زر «محادثة جديدة» — مخفي للمراقبين (ما يبدؤون محادثات) */
+    body.monitor-mode #newconv-btn { display: none; }
     .tab-btn {
       padding: 10px 18px; border: 1px solid var(--border);
       background: white; border-radius: 10px; cursor: pointer;
@@ -686,7 +688,9 @@
 
     <!-- WhatsApp-style: latest conversations at the top of the main view -->
     <section style="margin-top:0;">
-      <h3>المحادثات <span class="badge" id="c-badge">0</span></h3>
+      <h3>المحادثات <span class="badge" id="c-badge">0</span>
+        <button id="newconv-btn" class="filter-btn" style="background:#dcfce7; color:#166534; border-color:#bbf7d0; font-weight:800; margin-right:8px;">➕ محادثة جديدة</button>
+      </h3>
       <!-- شريط الفلاتر — كل الفلاتر droplist لتوفير المساحة -->
       <div class="filter-bar" style="margin-bottom:8px; flex-wrap:wrap;">
         <span class="filter-label">الفترة</span>
@@ -962,6 +966,29 @@
         <div id="emoji-picker-wrap" style="display:none; position:absolute; bottom:60px; left:10px; z-index:1000; box-shadow:0 8px 24px rgba(0,0,0,.18); border-radius:12px; overflow:hidden;">
           <emoji-picker dir="ltr" style="--background:#ffffff; --border-color:#e5e7eb;"></emoji-picker>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- محادثة جديدة: بدء التواصل مع رقم ما راسلنا عبر قالب واتساب معتمد -->
+  <div class="auth-overlay" id="newconv-overlay" style="display:none; z-index:10001;">
+    <div class="auth-card" style="text-align:right; max-width:480px;">
+      <h2>➕ محادثة جديدة</h2>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">للعميل اللي ما راسلكم قبل. تُرسَل رسالة ترحيب عبر قالب واتساب معتمد، وبعد ما يرد العميل تكملين المحادثة عادي.</p>
+      <input id="newconv-phone" placeholder="رقم العميل (+968…)" style="width:100%; margin-bottom:8px;" />
+      <input id="newconv-name" placeholder="اسم العميل (يُدرج بالقالب مكان {{1}})" style="width:100%; margin-bottom:8px;" />
+      <details style="margin:6px 0 10px;">
+        <summary style="cursor:pointer; font-weight:700; font-size:13px; color:var(--muted);">⚙️ إعداد القالب (مرة وحدة)</summary>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <input id="newconv-template-sid" placeholder="Template ContentSid (HX…)" style="flex:1;" />
+          <button id="newconv-template-save" class="filter-btn" type="button">حفظ</button>
+        </div>
+        <div id="newconv-template-status" style="font-size:12px; color:var(--muted); margin-top:4px;"></div>
+      </details>
+      <div id="newconv-error" style="color:var(--err); font-size:13px; min-height:16px;"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-start; margin-top:8px;">
+        <button id="newconv-send" type="button">بدء المحادثة</button>
+        <button id="newconv-cancel" class="filter-btn" type="button">إلغاء</button>
       </div>
     </div>
   </div>
@@ -3153,6 +3180,57 @@
         alert("فشل إرسال العرض: " + e.message);
       }
     }
+
+    // ── محادثة جديدة عبر قالب واتساب ──────────────────────────────────────
+    function openNewConv() {
+      $("newconv-error").textContent = "";
+      $("newconv-phone").value = "";
+      $("newconv-name").value = "";
+      $("newconv-template-status").textContent = "";
+      $("newconv-overlay").style.display = "grid";
+      // اجلبي الـ ContentSid المحفوظ لتعبئة الحقل
+      fetch(BASE + "?admin_action=get_greeting_template", { headers: { Authorization: "Bearer " + token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) $("newconv-template-sid").value = d.content_sid || ""; })
+        .catch(() => {});
+      setTimeout(() => $("newconv-phone").focus(), 60);
+    }
+    function closeNewConv() { $("newconv-overlay").style.display = "none"; }
+    $("newconv-btn").addEventListener("click", openNewConv);
+    $("newconv-cancel").addEventListener("click", closeNewConv);
+    $("newconv-template-save").addEventListener("click", async () => {
+      const sid = $("newconv-template-sid").value.trim();
+      const st = $("newconv-template-status");
+      st.textContent = "⏳…";
+      try {
+        await callApi("set_greeting_template", { content_sid: sid });
+        st.textContent = "✅ تم حفظ القالب";
+      } catch (e) { st.textContent = "فشل الحفظ: " + e.message; }
+    });
+    $("newconv-send").addEventListener("click", async () => {
+      const phone = $("newconv-phone").value.trim();
+      const name = $("newconv-name").value.trim();
+      const err = $("newconv-error");
+      err.textContent = "";
+      if (!phone) { err.textContent = "اكتبي رقم العميل"; return; }
+      const btn = $("newconv-send"); btn.disabled = true; btn.textContent = "جاري الإرسال…";
+      try {
+        const res = await fetch(BASE + "?admin_action=start_conversation", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, name }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "HTTP " + res.status);
+        closeNewConv();
+        await refresh();
+        openConversation(data.phone, name || data.phone);
+      } catch (e) {
+        err.textContent = "فشل بدء المحادثة: " + e.message;
+      } finally {
+        btn.disabled = false; btn.textContent = "بدء المحادثة";
+      }
+    });
 
     function applyProposalFilters() {
       // Counts merge proposals AND conversations so each option reflects
