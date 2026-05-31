@@ -181,6 +181,31 @@
     body.admin-contacts-tab section { display: none; }
     body.admin-contacts-tab .ai-toggle-card { display: none; }
     body.admin-contacts-tab section.contacts-section { display: block; }
+    /* "مكتبة العروض" — same pattern, its own tab. */
+    section.offers-section { display: none; }
+    body.admin-offers-tab section { display: none; }
+    body.admin-offers-tab .ai-toggle-card { display: none; }
+    body.admin-offers-tab section.offers-section { display: block; }
+    /* أزرار العروض السريعة داخل المحادثة */
+    .offer-quickbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px 0; }
+    .offer-cat-btn {
+      background: #ecfeff; color: #155e75; border: 1px solid #a5f3fc;
+      border-radius: 999px; padding: 6px 12px; cursor: pointer;
+      font-weight: 800; font-family: inherit; font-size: 12px;
+    }
+    .offer-cat-btn:hover { background: #cffafe; }
+    .offer-menu {
+      position: absolute; z-index: 1200; background: #fff;
+      border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px;
+      max-height: 280px; overflow-y: auto; min-width: 200px;
+    }
+    .offer-menu-item {
+      display: block; width: 100%; text-align: right; background: transparent;
+      border: none; border-radius: 8px; padding: 9px 12px; cursor: pointer;
+      font-family: inherit; font-size: 14px; font-weight: 700; color: var(--text);
+    }
+    .offer-menu-item:hover { background: #f1f5f9; }
 
     * { box-sizing: border-box; }
     html, body {
@@ -611,6 +636,7 @@
     <nav class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="main">📊 الرئيسية</button>
       <button class="tab-btn" data-tab="contacts">📇 جهات الاتصال</button>
+      <button class="tab-btn" data-tab="offers">📁 مكتبة العروض</button>
       <button class="tab-btn" data-tab="users">👤 إدارة المستخدمين</button>
     </nav>
 
@@ -753,6 +779,26 @@
           </div>
           <div style="display:flex; gap:8px;">
             <button id="staff-add">إضافة</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="offers-section">
+      <h3>📁 مكتبة العروض <span class="badge" id="o-badge">0</span></h3>
+      <p style="color:var(--muted); font-size:13px; margin:0 0 14px;">ارفعي ملفات العروض (PDF) وصنّفيها. «التصنيف» = الزر الرئيسي (مثل: عمان، السعودية)، و«الوجهة» = اسم الملف داخل القائمة (مثل: ماليزيا، اندونيسيا). تظهر لكل الموظفين أمام كل محادثة.</p>
+      <div class="panel-list" id="offers-list">
+        <div class="empty">جاري التحميل…</div>
+        <div class="form-row" id="offer-form" style="flex-wrap:wrap; gap:8px; flex-direction:column; align-items:stretch;">
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <input id="offer-category" list="offer-cat-list" placeholder="التصنيف / الزر (مثل: عمان)" />
+            <datalist id="offer-cat-list"></datalist>
+            <input id="offer-label" placeholder="اسم الوجهة (مثل: ماليزيا)" />
+            <input type="file" id="offer-file" accept="application/pdf,.pdf,image/*,.doc,.docx,.xls,.xlsx" style="padding:6px;" />
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="offer-add">⬆️ رفع العرض</button>
+            <span id="offer-upload-status" style="font-size:12px; color:var(--muted);"></span>
           </div>
         </div>
       </div>
@@ -905,6 +951,8 @@
         <span id="attach-size" style="font-size:11px; color:#64748b;">0 KB</span>
         <button type="button" id="attach-cancel" style="background:transparent; border:none; color:#dc2626; cursor:pointer; font-size:18px;" title="إزالة">✕</button>
       </div>
+      <!-- أزرار العروض السريعة — تُبنى من مكتبة العروض عند فتح المحادثة -->
+      <div class="offer-quickbar" id="offer-quickbar"></div>
       <div class="conv-footer">
         <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
         <input type="file" id="attach-input" accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" />
@@ -1184,7 +1232,7 @@
       btn.addEventListener("click", () => {
         if (!token) { showAuth(); return; }
         const r = btn.dataset.roleSwitch;
-        document.body.classList.remove("admin-users-tab", "admin-contacts-tab");
+        document.body.classList.remove("admin-users-tab", "admin-contacts-tab", "admin-offers-tab");
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === "main"));
         setSession(token, r);
         refresh();
@@ -1198,8 +1246,10 @@
         const tab = btn.dataset.tab;
         document.body.classList.toggle("admin-users-tab", tab === "users");
         document.body.classList.toggle("admin-contacts-tab", tab === "contacts");
+        document.body.classList.toggle("admin-offers-tab", tab === "offers");
         // First time opening contacts → load them
         if (tab === "contacts" && !contactsLoaded) loadContacts();
+        if (tab === "offers") loadOffers();
       });
     });
     function devEnter(role) {
@@ -2503,6 +2553,8 @@
       $("conv-sub").textContent = fmtPhone(phone);
       $("conv-overlay").style.display = "grid";
       $("conv-input").value = "";
+      // أزرار العروض السريعة — تُبنى من المكتبة (تُحمّل أول مرة)
+      if (offersLoaded) buildOfferQuickbar(); else loadOffers();
       // Mark as opened/read — fire-and-forget so the modal stays snappy
       fetch(BASE + "?admin_action=mark_opened", {
         method: "POST",
@@ -2634,6 +2686,7 @@
     $("conv-close").addEventListener("click", () => {
       $("conv-overlay").style.display = "none";
       convPhone = "";
+      closeOfferMenu();
       stopConvPolling();
     });
     // Image lightbox — ضغطة على أي صورة في المحادثة تفتحها بحجم كامل
@@ -2934,6 +2987,172 @@
         btn.disabled = false;
       }
     });
+
+    // ── مكتبة العروض ─────────────────────────────────────────────────────
+    let offersCache = [];
+    let offersLoaded = false;
+    let openOfferMenu = null;
+
+    function closeOfferMenu() {
+      if (openOfferMenu) { openOfferMenu.remove(); openOfferMenu = null; }
+    }
+    document.addEventListener("click", (e) => {
+      if (openOfferMenu && !openOfferMenu.contains(e.target)
+          && !(e.target.classList && e.target.classList.contains("offer-cat-btn"))) {
+        closeOfferMenu();
+      }
+    });
+
+    async function loadOffers() {
+      try {
+        const res = await fetch(BASE + "?admin_action=list_offers", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        offersCache = data.offers || [];
+        offersLoaded = true;
+        renderOffers();
+        if ($("conv-overlay") && $("conv-overlay").style.display !== "none") buildOfferQuickbar();
+      } catch (e) {
+        const list = $("offers-list");
+        const form = list && list.querySelector("#offer-form");
+        if (list && form) list.innerHTML = `<div class="empty" style="color:var(--err)">خطأ: ${escapeHtml(e.message)}</div>` + form.outerHTML;
+        bindOfferForm();
+      }
+    }
+
+    function bindOfferForm() {
+      const add = $("offer-add");
+      if (add) add.onclick = uploadOffer;
+    }
+
+    function renderOffers() {
+      const list = $("offers-list");
+      if (!list) return;
+      const form = list.querySelector("#offer-form");
+      const formHtml = form ? form.outerHTML : "";
+      const cats = [...new Set(offersCache.map(o => o.category))];
+      const badge = $("o-badge"); if (badge) badge.textContent = offersCache.length;
+      let rows = "";
+      cats.forEach(cat => {
+        const items = offersCache.filter(o => o.category === cat);
+        rows += `<div style="font-weight:800; margin:10px 0 4px; color:#155e75;">📋 ${escapeHtml(cat)} <span style="color:var(--muted);font-weight:600;">(${items.length})</span></div>`;
+        rows += items.map(o => `<div class="row" style="display:flex; align-items:center; gap:8px; padding:6px 0;">
+          <a href="${escapeHtml(o.file_url)}" target="_blank" rel="noopener" style="flex:1; font-weight:700; color:var(--text); text-decoration:none;">📄 ${escapeHtml(o.label)}</a>
+          <button class="toggle-btn off" data-offer-del="${escapeHtml(o.id)}" style="min-width:auto;padding:6px 10px;">🗑️ حذف</button>
+        </div>`).join("");
+      });
+      list.innerHTML = (rows || '<div class="empty">ولا عرض مرفوع بعد</div>') + formHtml;
+      const dl = $("offer-cat-list");
+      if (dl) dl.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}"></option>`).join("");
+      bindOfferForm();
+      list.querySelectorAll("[data-offer-del]").forEach(b =>
+        b.addEventListener("click", () => deleteOffer(b.dataset.offerDel)));
+    }
+
+    async function uploadOffer() {
+      const cat = $("offer-category").value.trim();
+      const label = $("offer-label").value.trim();
+      const fileEl = $("offer-file");
+      const file = fileEl.files && fileEl.files[0];
+      const status = $("offer-upload-status");
+      if (!cat || !label) { alert("اكتبي التصنيف واسم الوجهة"); return; }
+      if (!file) { alert("اختاري ملف العرض"); return; }
+      if (file.size > 100 * 1024 * 1024) { alert("الملف أكبر من 100MB"); return; }
+      const add = $("offer-add"); add.disabled = true;
+      if (status) status.textContent = "⏳ جاري الرفع…";
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("category", cat);
+        fd.append("label", label);
+        const res = await fetch(BASE + "?admin_action=upload_offer", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "HTTP " + res.status);
+        $("offer-label").value = "";
+        fileEl.value = "";
+        if (status) status.textContent = "✅ تم الرفع";
+        await loadOffers();
+      } catch (e) {
+        if (status) status.textContent = "";
+        alert("فشل رفع العرض: " + e.message);
+      } finally {
+        add.disabled = false;
+      }
+    }
+
+    async function deleteOffer(id) {
+      if (!confirm("حذف هذا العرض نهائياً؟")) return;
+      try {
+        await callApi("delete_offer", { id });
+        await loadOffers();
+      } catch (e) { alert("فشل الحذف: " + e.message); }
+    }
+
+    // أزرار العروض السريعة داخل المحادثة
+    function buildOfferQuickbar() {
+      const bar = $("offer-quickbar");
+      if (!bar) return;
+      closeOfferMenu();
+      bar.innerHTML = "";
+      const cats = [...new Set(offersCache.map(o => o.category))];
+      cats.forEach(cat => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "offer-cat-btn";
+        btn.textContent = "📋 عروض " + cat;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (openOfferMenu && openOfferMenu.dataset.cat === cat) { closeOfferMenu(); return; }
+          closeOfferMenu();
+          const items = offersCache.filter(o => o.category === cat);
+          const menu = document.createElement("div");
+          menu.className = "offer-menu";
+          menu.dataset.cat = cat;
+          items.forEach(o => {
+            const it = document.createElement("button");
+            it.type = "button";
+            it.className = "offer-menu-item";
+            it.textContent = "📄 " + o.label;
+            it.addEventListener("click", () => { closeOfferMenu(); sendOffer(o); });
+            menu.appendChild(it);
+          });
+          document.body.appendChild(menu);
+          const r = btn.getBoundingClientRect();
+          menu.style.top = (r.bottom + 4) + "px";
+          menu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+          openOfferMenu = menu;
+        });
+        bar.appendChild(btn);
+      });
+    }
+
+    async function sendOffer(offer) {
+      if (!convPhone) return;
+      if (!confirm('إرسال «' + offer.label + '» للعميل؟')) return;
+      try {
+        const res = await fetch(BASE + "?admin_action=send_admin_message", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: convPhone, media_url: offer.file_url, sent_by: "admin" }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const body = $("conv-body");
+        const optimistic = document.createElement("div");
+        optimistic.className = "conv-msg bot admin";
+        optimistic.innerHTML = `<span class="sender-pill">Admin</span><div class="bubble">📎 ${escapeHtml(offer.label)} — ${escapeHtml(offer.category)}</div><div class="meta">جاري الإرسال…</div>`;
+        body.appendChild(optimistic);
+        body.scrollTop = body.scrollHeight;
+        setTimeout(() => loadConversationHistory(), 4000);
+      } catch (e) {
+        alert("فشل إرسال العرض: " + e.message);
+      }
+    }
 
     function applyProposalFilters() {
       // Counts merge proposals AND conversations so each option reflects
