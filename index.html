@@ -3082,6 +3082,7 @@
         rows += `<div style="font-weight:800; margin:10px 0 4px; color:#155e75;">📋 ${escapeHtml(cat)} <span style="color:var(--muted);font-weight:600;">(${items.length})</span></div>`;
         rows += items.length ? items.map(o => `<div class="row" style="display:flex; align-items:center; gap:8px; padding:6px 0;">
           <a href="${escapeHtml(o.file_url)}" target="_blank" rel="noopener" style="flex:1; font-weight:700; color:var(--text); text-decoration:none;">📄 ${escapeHtml(o.label)}</a>
+          <button class="toggle-btn" data-offer-edit="${escapeHtml(o.id)}" data-offer-label="${escapeHtml(o.label)}" style="min-width:auto;padding:6px 10px;">✏️ تعديل</button>
           <button class="toggle-btn off" data-offer-del="${escapeHtml(o.id)}" style="min-width:auto;padding:6px 10px;">🗑️ حذف</button>
         </div>`).join("") : `<div style="color:var(--muted); font-size:12px; padding:2px 0 6px;">— لا عروض بعد —</div>`;
       });
@@ -3089,6 +3090,20 @@
       bindOfferForm();
       list.querySelectorAll("[data-offer-del]").forEach(b =>
         b.addEventListener("click", () => deleteOffer(b.dataset.offerDel)));
+      list.querySelectorAll("[data-offer-edit]").forEach(b =>
+        b.addEventListener("click", () => editOffer(b.dataset.offerEdit, b.dataset.offerLabel)));
+    }
+
+    async function editOffer(id, current) {
+      const name = prompt("اسم العرض (الوجهة):", current || "");
+      if (name === null) return;            // ألغت
+      const trimmed = name.trim();
+      if (!trimmed) { alert("الاسم ما يصير فاضي"); return; }
+      if (trimmed === (current || "")) return;   // ما تغيّر
+      try {
+        await callApi("update_offer", { id, label: trimmed });
+        await loadOffers();
+      } catch (e) { alert("فشل التعديل: " + e.message); }
     }
 
     async function uploadOffer() {
