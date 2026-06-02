@@ -3475,7 +3475,7 @@
               <span class="dot ${isUrgent ? 'err' : 'warn'}"></span>
               <div class="label-text" style="flex:1;">
                 <div style="font-size:11px; font-weight:800; color:#0f766e; margin-bottom:2px;">📩 سؤال العميل</div>
-                <span class="primary" style="font-weight:800;">${escapeHtml(p.customer_question)}</span>
+                <span class="primary" data-proposal-action="view-convo" data-phone="${escapeHtml(p.customer_phone)}" data-name="${escapeHtml(p.customer_profile_name || "")}" style="font-weight:800; cursor:pointer; text-decoration:underline; text-decoration-style:dotted;" title="اضغطي لعرض المحادثة كاملة">${escapeHtml(p.customer_question)}</span>
                 <span class="secondary">${escapeHtml(p.customer_profile_name || "")} (${escapeHtml(fmtPhone(p.customer_phone))})</span>
                 <div style="margin-top:4px; display:flex; gap:6px; align-items:center; font-size:11px; color:#6b7280; flex-wrap:wrap;">
                   <span style="font-weight:800;">🗂️ التصنيف:</span>
@@ -3496,6 +3496,7 @@
                   </div>` : ""}
                 <!-- زرّا القرار + خانة التصحيح (مخفية افتراضياً) -->
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+                  <button class="toggle-btn inherit" data-proposal-action="view-convo" data-phone="${escapeHtml(p.customer_phone)}" data-name="${escapeHtml(p.customer_profile_name || "")}" style="min-width:auto; padding:8px 14px; background:#e0f2fe; color:#075985; border-color:#bae6fd;">💬 المحادثة كاملة</button>
                   <button class="toggle-btn" data-proposal-action="approve" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px;">✅ موافق — أرسل</button>
                   <button class="toggle-btn off" data-proposal-action="reject" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px;">✏️ تعديل الرد</button>
                   <button class="toggle-btn off" data-proposal-action="delete" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px; background:#fee2e2; color:#991b1b; border-color:#fecaca;">🗑️ حذف</button>
@@ -3557,6 +3558,11 @@
           e.stopPropagation();
           const action = b.dataset.proposalAction;
           const id = b.dataset.id;
+          if (action === "view-convo") {
+            const ph = b.dataset.phone;
+            openConversation(ph, b.dataset.name || fmtPhone(ph));
+            return;
+          }
           if (action === "approve") return decideProposal(id, "approve", null, b);
           if (action === "delete") {
             if (confirm("حذف هذا الاقتراح؟ لن يُرسل أي رد للعميل.")) return decideProposal(id, "dismiss", null, b);
