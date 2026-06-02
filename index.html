@@ -3204,8 +3204,22 @@
           });
           document.body.appendChild(menu);
           const r = btn.getBoundingClientRect();
-          menu.style.top = (r.bottom + 4) + "px";
+          const gap = 6;
+          // محاذاة أفقية (RTL): الحافة اليمنى للقائمة عند يمين الزر
           menu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+          // الزر قريب من أسفل الشاشة عادةً → نفتح للأعلى لو المساحة فوق أكبر،
+          // ونضبط أقصى ارتفاع على المساحة المتاحة مع تمرير داخلي فما تختفي.
+          const spaceBelow = window.innerHeight - r.bottom;
+          const spaceAbove = r.top;
+          if (spaceAbove > spaceBelow) {
+            menu.style.top = "auto";
+            menu.style.bottom = (window.innerHeight - r.top + gap) + "px";
+            menu.style.maxHeight = Math.max(140, spaceAbove - gap - 12) + "px";
+          } else {
+            menu.style.bottom = "auto";
+            menu.style.top = (r.bottom + gap) + "px";
+            menu.style.maxHeight = Math.max(140, spaceBelow - gap - 12) + "px";
+          }
           openOfferMenu = menu;
         });
         bar.appendChild(btn);
