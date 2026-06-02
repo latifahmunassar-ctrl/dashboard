@@ -3498,6 +3498,7 @@
                 <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
                   <button class="toggle-btn" data-proposal-action="approve" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px;">✅ موافق — أرسل</button>
                   <button class="toggle-btn off" data-proposal-action="reject" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px;">✏️ تعديل الرد</button>
+                  <button class="toggle-btn off" data-proposal-action="delete" data-id="${escapeHtml(p.id)}" style="min-width:auto; padding:8px 14px; background:#fee2e2; color:#991b1b; border-color:#fecaca;">🗑️ حذف</button>
                 </div>
                 <div class="proposal-correct" data-correct-for="${escapeHtml(p.id)}" style="display:none; margin-top:8px;">
                   <textarea class="proposal-correct-text" rows="3" placeholder="اكتبي الرد الصحيح للعميل…" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; font-family:inherit; font-weight:600; font-size:13px; resize:vertical;"></textarea>
@@ -3557,6 +3558,10 @@
           const action = b.dataset.proposalAction;
           const id = b.dataset.id;
           if (action === "approve") return decideProposal(id, "approve", null, b);
+          if (action === "delete") {
+            if (confirm("حذف هذا الاقتراح؟ لن يُرسل أي رد للعميل.")) return decideProposal(id, "dismiss", null, b);
+            return;
+          }
           if (action === "reject") {
             // إظهار خانة التصحيح
             const box = list.querySelector(`[data-correct-for="${CSS.escape(id)}"]`);
