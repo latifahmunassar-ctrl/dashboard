@@ -2833,7 +2833,10 @@
         const d = await r.json();
         if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
         msg.style.color = "#15803d";
-        msg.textContent = "✅ تم الحفظ (" + (d.status === "complete" ? "مكتمل" : "غير مكتمل") + ")";
+        let extra = "";
+        if (d.confirmation_sent) extra = " · 📨 أُرسلت رسالة تأكيد للعميل";
+        else if (d.status === "complete") extra = " · (لم تُرسَل رسالة التأكيد — إمّا أُرسلت سابقاً أو العميل خارج نافذة 24 ساعة)";
+        msg.textContent = "✅ تم الحفظ (" + (d.status === "complete" ? "مكتمل" : "غير مكتمل") + ")" + extra;
         bfBadge(d.status);
       } catch (e) {
         msg.style.color = "#dc2626"; msg.textContent = "خطأ: " + e.message;
