@@ -971,7 +971,7 @@
           <span>📋 طلب فرد <span id="brief-status-badge" style="font-size:11px; font-weight:600;"></span></span>
           <span id="brief-caret">▾</span>
         </button>
-        <div id="brief-form" style="display:none; padding:10px 16px 14px; background:#fbfdfc;">
+        <div id="brief-form" style="display:none; padding:10px 16px 14px; background:#fbfdfc; max-height:46vh; overflow-y:auto;">
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px;">
             <label style="display:flex; flex-direction:column; gap:3px;">الوجهة
               <select id="bf-destination" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
@@ -1025,7 +1025,7 @@
             <span>رقم العميل: <b id="bf-phone">—</b></span>
             <span>الموظف: <b id="bf-handled_by">—</b></span>
           </div>
-          <button type="button" id="bf-save" style="margin-top:10px; width:100%; background:#0b5d4e; color:#fff; border:none; border-radius:8px; padding:10px; font-weight:700; cursor:pointer;">💾 حفظ الطلب</button>
+          <button type="button" id="bf-save" style="margin-top:10px; width:100%; background:#0b5d4e; color:#fff; border:none; border-radius:8px; padding:10px; font-weight:700; cursor:pointer; position:sticky; bottom:0; box-shadow:0 -6px 12px #fbfdfc;">💾 حفظ الطلب</button>
           <div id="bf-msg" style="margin-top:6px; font-size:12px; min-height:16px;"></div>
         </div>
       </div>
