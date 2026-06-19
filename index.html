@@ -2692,9 +2692,9 @@
     let bfChosenCN = null;   // [{city,nights}] للتحويل المباشر
     function bfCurrency(phone) {
       const d = String(phone || "").replace(/[^0-9]/g, "");
-      if (d.startsWith("968")) return "OMR";
-      if (d.startsWith("966")) return "SAR";
-      return "";
+      const map = [["968","OMR"],["971","AED"],["966","SAR"],["965","KWD"],["974","QAR"],["973","BHD"],["20","EGP"]];
+      const hit = map.find(([p]) => d.startsWith(p));
+      return hit ? hit[1] : "";
     }
     function bfBadge(status) {
       const el = $("bf-status-badge");
