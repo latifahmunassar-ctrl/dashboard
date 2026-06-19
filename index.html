@@ -996,11 +996,10 @@
             <label style="display:flex; flex-direction:column; gap:3px;">عدد الشرائح
               <input type="number" min="0" id="bf-sim_count" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
             </label>
-            <label style="display:flex; flex-direction:column; gap:3px;">مطار القدوم
-              <input list="bf-cities" id="bf-arrival_airport" placeholder="مدينة أو نص حر" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
-            </label>
-            <label style="display:flex; flex-direction:column; gap:3px;">مطار المغادرة
-              <input list="bf-cities" id="bf-departure_airport" placeholder="مدينة أو نص حر" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            <label style="display:flex; flex-direction:column; gap:3px; grid-column:1 / -1;">المطار (قدوم → مغادرة)
+              <select id="bf-airport" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+                <option value="">— اختر الوجهة أولاً —</option>
+              </select>
             </label>
             <label style="display:flex; flex-direction:column; gap:3px;">تصنيف الفندق
               <select id="bf-hotel_stars" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
@@ -1012,7 +1011,13 @@
               <input id="bf-currency" readonly style="padding:7px; border:1px solid #e3e8ee; border-radius:7px; background:#f1f5f9; color:#475569;">
             </label>
           </div>
-          <datalist id="bf-cities"></datalist>
+          <!-- توزيع المدن: من اقتراحات النظام السياحي (client-intake) حسب المطار + الأيام -->
+          <div style="margin-top:8px;">
+            <div style="font-size:12px; color:#475569; font-weight:700; margin-bottom:4px;">توزيع المدن (من النظام السياحي)</div>
+            <div id="bf-sug-hint" style="font-size:12px; color:#b45309;">اختر الوجهة والمطار وعدد الأيام لعرض التوزيع الجاهز.</div>
+            <div id="bf-sug-list" style="display:flex; flex-direction:column; gap:6px; margin-top:4px;"></div>
+            <div id="bf-chosen-wrap" style="display:none; margin-top:6px; font-size:12px; color:#0b5d4e;">المختار: <b id="bf-chosen-dist"></b></div>
+          </div>
           <label style="display:flex; flex-direction:column; gap:3px; margin-top:8px; font-size:13px;">ملاحظات
             <textarea id="bf-notes" rows="2" style="padding:7px; border:1px solid #d7dee6; border-radius:7px; resize:vertical;"></textarea>
           </label>
@@ -2675,27 +2680,21 @@
     }
 
     // ── 📋 طلب فرد (booking_brief) — تعبئة يدوية، منفصل تماماً عن منطق الرد ────
-    // لا استخراج تلقائي: الموظف يقرأ المحادثة ويعبّئ. الحفظ يكتب في booking_brief
-    // عبر endpoint جديد بالراوتر. لا يلمس إرسال/استقبال الرسائل إطلاقاً.
-    const BRIEF_CITIES = {
-      "فيتنام": ["هانوي","دانانغ","هوشي منه","فو كوك","سابا","هالونغ","نها ترانغ"],
-      "ماليزيا": ["كوالالمبور","لنكاوي","بينانغ","ملاكا","كوتا كينابالو"],
-      "تايلاند": ["بانكوك","بوكيت","شيانغ ماي","باتايا","كرابي","كو ساموي"],
-      "تركيا": ["اسطنبول","أنطاليا","طرابزون","بورصة","إزمير","أنقرة"],
-      "روسيا": ["موسكو","سان بطرسبرغ","سوتشي","قازان"],
-      "البوسنة": ["سراييفو","موستار","ترافنيك","بيهاتش"],
-      "إندونيسيا": ["بالي","جاكرتا","باندونغ","يوغياكرتا","لومبوك"],
-      "عُمان": ["مسقط","صلالة","صور","نزوى","خصب"],
-    };
+    // المطارات + توزيع المدن من نفس مصدر النظام السياحي: client-intake?suggestions=<dest>.
+    // لا استخراج تلقائي. الحفظ يكتب في booking_brief عبر الراوتر. لا يلمس الرسائل.
+    const BF_INTAKE = "https://ofotvacszlmrqxzfjmtn.supabase.co/functions/v1/client-intake";
+    const BF_AIRPORT_AR = {Istanbul:"اسطنبول",Trabzon:"طرابزون","Kuala Lumpur":"كوالالمبور",Penang:"بينانج",Langkawi:"لانكاوي",Sarajevo:"سراييفو",Mostar:"موستار",Bangkok:"بانكوك","Ha Noi":"هانوي",Moscow:"موسكو",Jakarta:"جاكرتا","Phu Quoc":"فوكوك","Ho Chi Minh":"هوتشي مينه","Da Nang":"دانانج",Bali:"بالي",Salalah:"صلالة"};
+    function bfAirAr(a){ return BF_AIRPORT_AR[a] || a; }
+    function bfPairOf(s){ return (s.arrival_airport||"") + "|" + (s.departure_airport||""); }
+    function bfPairLabel(pv){ const [a,b]=pv.split("|"); return a===b ? ("القدوم والمغادرة: "+bfAirAr(a)) : ("القدوم: "+bfAirAr(a)+" — المغادرة: "+bfAirAr(b)); }
+    let BF_SUGS = [];
+    let bfChosenDist = "";   // نص التوزيع المختار
+    let bfChosenCN = null;   // [{city,nights}] للتحويل المباشر
     function bfCurrency(phone) {
       const d = String(phone || "").replace(/[^0-9]/g, "");
       if (d.startsWith("968")) return "OMR";
       if (d.startsWith("966")) return "SAR";
       return "";
-    }
-    function bfFillCities(dest) {
-      const dl = $("bf-cities");
-      if (dl) dl.innerHTML = (BRIEF_CITIES[dest] || []).map(c => `<option value="${c}">`).join("");
     }
     function bfBadge(status) {
       const el = $("bf-status-badge");
@@ -2704,16 +2703,76 @@
         ? '<span style="color:#15803d;">● مكتمل</span>'
         : '<span style="color:#b45309;">● غير مكتمل</span>';
     }
+    // "2 سيلانجور - 2 لانكاوي" → [{city,nights}]
+    function bfParseDist(str){
+      const norm = String(str||"").replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+      return norm.split(/[+\-]/).map(s => s.trim()).map(s => {
+        const m = s.match(/^(\d+)\s*(?:ليالي|ليلة|ليال|أيام|يوم)?\s*(.+)$/);
+        return m ? { city: m[2].trim(), nights: +m[1] } : null;
+      }).filter(Boolean);
+    }
+    async function bfLoadSugs(dest){
+      BF_SUGS = [];
+      const aSel = $("bf-airport");
+      if (aSel) aSel.innerHTML = '<option value="">— …جارٍ الجلب —</option>';
+      if (!dest) { if (aSel) aSel.innerHTML = '<option value="">— اختر الوجهة أولاً —</option>'; return; }
+      try {
+        const r = await fetch(BF_INTAKE + "?suggestions=" + encodeURIComponent(dest));
+        BF_SUGS = (await r.json()).suggestions || [];
+      } catch (_) { BF_SUGS = []; }
+      const pairs = [...new Set(BF_SUGS.map(bfPairOf))].filter(p => p !== "|");
+      if (aSel) aSel.innerHTML = pairs.length
+        ? '<option value="">— اختر المطار —</option>' + pairs.map(p => `<option value="${p}">${bfPairLabel(p)}</option>`).join("")
+        : '<option value="">لا مطارات جاهزة لهذه الوجهة</option>';
+    }
+    function bfRenderSugs(){
+      const list = $("bf-sug-list"); const hint = $("bf-sug-hint");
+      if (!list || !hint) return;
+      list.innerHTML = "";
+      const dest = $("bf-destination") ? $("bf-destination").value : "";
+      const pair = $("bf-airport") ? $("bf-airport").value : "";
+      const days = +($("bf-days") ? $("bf-days").value : 0) || 0;
+      const show = (t, html) => { hint.style.display = ""; if (html) hint.innerHTML = t; else hint.textContent = t; };
+      if (!dest) return show("اختر الوجهة أولاً.");
+      if (!BF_SUGS.length) return show("لا توجد اقتراحات جاهزة لهذه الوجهة.");
+      if (!pair) return show("اختر المطار.");
+      let rows = BF_SUGS.filter(s => bfPairOf(s) === pair);
+      if (days) rows = rows.filter(s => +s.days === days);
+      if (!rows.length) {
+        const avail = [...new Set(BF_SUGS.filter(s=>bfPairOf(s)===pair).map(s=>+s.days))].sort((a,b)=>a-b).join("، ");
+        return show("لا يوجد توزيع لـ " + days + " أيام لهذا المطار. المتوفّر: <b>"+avail+"</b> أيام.", true);
+      }
+      rows.sort((a,b)=>(+a.days)-(+b.days));
+      hint.style.display = "none";
+      list.innerHTML = rows.map((s,i)=>`
+        <div class="bf-sugcard" data-i="${i}" style="border:1px solid #d7dee6; border-radius:8px; padding:7px 9px; cursor:pointer; background:${s.distribution===bfChosenDist?'#eaf5f1':'#fff'};">
+          <div style="font-size:11px; color:#0b5d4e; font-weight:700;">${s.days} أيام</div>
+          <div style="font-size:13px;">${s.distribution||""}</div>
+        </div>`).join("");
+      [...list.querySelectorAll(".bf-sugcard")].forEach(el => el.onclick = () => {
+        list.querySelectorAll(".bf-sugcard").forEach(x => x.style.background = "#fff");
+        el.style.background = "#eaf5f1";
+        const s = rows[+el.dataset.i];
+        bfChosenDist = s.distribution || "";
+        bfChosenCN = bfParseDist(bfChosenDist);
+        if ($("bf-days") && +$("bf-days").value !== +s.days) $("bf-days").value = s.days;
+        if ($("bf-chosen-wrap")) { $("bf-chosen-wrap").style.display = ""; $("bf-chosen-dist").textContent = bfChosenDist; }
+      });
+    }
     async function loadBrief(phone) {
       const setv = (id, v) => { const el = $(id); if (el) el.value = (v == null ? "" : v); };
+      bfChosenDist = ""; bfChosenCN = null;
+      if ($("bf-chosen-wrap")) $("bf-chosen-wrap").style.display = "none";
+      if ($("bf-sug-list")) $("bf-sug-list").innerHTML = "";
+      if ($("bf-airport")) $("bf-airport").innerHTML = '<option value="">— اختر الوجهة أولاً —</option>';
       if ($("bf-phone")) $("bf-phone").textContent = fmtPhone(phone);
       if ($("bf-handled_by")) $("bf-handled_by").textContent =
         localStorage.getItem(USERNAME_KEY) || localStorage.getItem(ROLE_KEY) || "admin";
       if ($("bf-currency")) $("bf-currency").value = bfCurrency(phone);
       if ($("bf-status-badge")) $("bf-status-badge").textContent = "";
       if ($("bf-msg")) $("bf-msg").textContent = "";
-      ["bf-destination","bf-date_from","bf-pax","bf-children","bf-days","bf-sim_count",
-       "bf-arrival_airport","bf-departure_airport","bf-hotel_stars","bf-notes"].forEach(id => setv(id, ""));
+      ["bf-destination","bf-date_from","bf-pax","bf-children","bf-days","bf-sim_count","bf-hotel_stars","bf-notes"]
+        .forEach(id => setv(id, ""));
       try {
         const r = await fetch(BASE + "?admin_action=get_booking_brief", {
           method: "POST",
@@ -2723,26 +2782,45 @@
         if (!r.ok) return;
         const b = (await r.json()).brief;
         if (!b || phone !== convPhone) return;   // تجاهل لو بدّل المستخدم المحادثة
-        setv("bf-destination", b.destination); bfFillCities(b.destination || "");
+        setv("bf-destination", b.destination);
         setv("bf-date_from", b.date_from); setv("bf-pax", b.pax); setv("bf-children", b.children);
         setv("bf-days", b.days); setv("bf-sim_count", b.sim_count);
-        setv("bf-arrival_airport", b.arrival_airport); setv("bf-departure_airport", b.departure_airport);
         setv("bf-hotel_stars", b.hotel_stars == null ? "" : String(b.hotel_stars));
         setv("bf-notes", b.notes);
         if (b.currency) $("bf-currency").value = b.currency;
+        if (b.distribution) {
+          bfChosenDist = b.distribution;
+          bfChosenCN = Array.isArray(b.cities_nights) ? b.cities_nights : bfParseDist(b.distribution);
+          if ($("bf-chosen-wrap")) { $("bf-chosen-wrap").style.display = ""; $("bf-chosen-dist").textContent = b.distribution; }
+        }
         bfBadge(b.status);
+        if (b.destination) {
+          await bfLoadSugs(b.destination);
+          if (phone !== convPhone) return;
+          const pv = (b.arrival_airport || "") + "|" + (b.departure_airport || "");
+          if ($("bf-airport") && pv !== "|") {
+            if (![...$("bf-airport").options].some(o => o.value === pv))
+              $("bf-airport").insertAdjacentHTML("beforeend", `<option value="${pv}">${bfPairLabel(pv)}</option>`);
+            $("bf-airport").value = pv;
+          }
+          bfRenderSugs();
+        }
       } catch (_) { /* صامت */ }
     }
     async function saveBrief() {
       const val = id => ($(id) ? $(id).value.trim() : "");
+      const pair = val("bf-airport");
+      const [arr, dep] = pair ? pair.split("|") : ["", ""];
       const payload = {
         contact_phone: convPhone,
         destination: val("bf-destination"),
         pax: val("bf-pax"), children: val("bf-children"), days: val("bf-days"),
         date_from: val("bf-date_from"),
-        arrival_airport: val("bf-arrival_airport"), departure_airport: val("bf-departure_airport"),
+        arrival_airport: arr || "", departure_airport: dep || "",
         sim_count: val("bf-sim_count"), hotel_stars: val("bf-hotel_stars"),
         notes: val("bf-notes"), currency: val("bf-currency"),
+        distribution: bfChosenDist || "",
+        cities_nights: bfChosenCN || null,
       };
       const btn = $("bf-save"); const old = btn.textContent; btn.disabled = true; btn.textContent = "جاري الحفظ…";
       const msg = $("bf-msg"); msg.style.color = "#64748b"; msg.textContent = "";
@@ -2766,7 +2844,13 @@
       f.style.display = willOpen ? "block" : "none";
       $("brief-caret").textContent = willOpen ? "▴" : "▾";
     });
-    if ($("bf-destination")) $("bf-destination").addEventListener("change", e => bfFillCities(e.target.value));
+    if ($("bf-destination")) $("bf-destination").addEventListener("change", async e => {
+      bfChosenDist = ""; bfChosenCN = null;
+      if ($("bf-chosen-wrap")) $("bf-chosen-wrap").style.display = "none";
+      await bfLoadSugs(e.target.value); bfRenderSugs();
+    });
+    if ($("bf-airport")) $("bf-airport").addEventListener("change", bfRenderSugs);
+    if ($("bf-days")) $("bf-days").addEventListener("input", bfRenderSugs);
     if ($("bf-save")) $("bf-save").addEventListener("click", saveBrief);
     async function loadConversationHistory() {
       if (!convPhone) return;
