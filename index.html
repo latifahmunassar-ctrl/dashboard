@@ -965,6 +965,65 @@
       </div>
       <!-- أزرار العروض السريعة — تُبنى من مكتبة العروض عند فتح المحادثة -->
       <div class="offer-quickbar" id="offer-quickbar"></div>
+      <!-- 📋 طلب فرد (booking_brief) — تعبئة يدوية من المحادثة (لا استخراج) -->
+      <div id="brief-section" style="border-top:1px solid #eee;">
+        <button type="button" id="brief-toggle" style="width:100%; text-align:right; background:#f8fafc; border:none; padding:9px 16px; cursor:pointer; font-weight:700; color:#0b5d4e; display:flex; justify-content:space-between; align-items:center;">
+          <span>📋 طلب فرد <span id="brief-status-badge" style="font-size:11px; font-weight:600;"></span></span>
+          <span id="brief-caret">▾</span>
+        </button>
+        <div id="brief-form" style="display:none; padding:10px 16px 14px; background:#fbfdfc;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px;">
+            <label style="display:flex; flex-direction:column; gap:3px;">الوجهة
+              <select id="bf-destination" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+                <option value="">— اختر —</option>
+                <option>فيتنام</option><option>ماليزيا</option><option>تايلاند</option>
+                <option>تركيا</option><option>روسيا</option><option>البوسنة</option>
+                <option>إندونيسيا</option><option>عُمان</option>
+              </select>
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">تاريخ السفر
+              <input type="date" id="bf-date_from" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">عدد البالغين
+              <input type="number" min="1" id="bf-pax" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">عدد الأطفال
+              <input type="number" min="0" id="bf-children" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">عدد الأيام
+              <input type="number" min="1" id="bf-days" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">عدد الشرائح
+              <input type="number" min="0" id="bf-sim_count" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">مطار القدوم
+              <input list="bf-cities" id="bf-arrival_airport" placeholder="مدينة أو نص حر" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">مطار المغادرة
+              <input list="bf-cities" id="bf-departure_airport" placeholder="مدينة أو نص حر" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">تصنيف الفندق
+              <select id="bf-hotel_stars" style="padding:7px; border:1px solid #d7dee6; border-radius:7px;">
+                <option value="">غير محدد</option><option value="3">٣ نجوم</option>
+                <option value="4">٤ نجوم</option><option value="5">٥ نجوم</option>
+              </select>
+            </label>
+            <label style="display:flex; flex-direction:column; gap:3px;">العملة (تلقائي)
+              <input id="bf-currency" readonly style="padding:7px; border:1px solid #e3e8ee; border-radius:7px; background:#f1f5f9; color:#475569;">
+            </label>
+          </div>
+          <datalist id="bf-cities"></datalist>
+          <label style="display:flex; flex-direction:column; gap:3px; margin-top:8px; font-size:13px;">ملاحظات
+            <textarea id="bf-notes" rows="2" style="padding:7px; border:1px solid #d7dee6; border-radius:7px; resize:vertical;"></textarea>
+          </label>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#64748b;">
+            <span>رقم العميل: <b id="bf-phone">—</b></span>
+            <span>الموظف: <b id="bf-handled_by">—</b></span>
+          </div>
+          <button type="button" id="bf-save" style="margin-top:10px; width:100%; background:#0b5d4e; color:#fff; border:none; border-radius:8px; padding:10px; font-weight:700; cursor:pointer;">💾 حفظ الطلب</button>
+          <div id="bf-msg" style="margin-top:6px; font-size:12px; min-height:16px;"></div>
+        </div>
+      </div>
       <div class="conv-footer">
         <textarea id="conv-input" placeholder="اكتب الرد للعميل… (Enter للإرسال، Shift+Enter لسطر جديد)" rows="2"></textarea>
         <input type="file" id="attach-input" accept="image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" />
@@ -2612,7 +2671,103 @@
       const fresh = convHistoryCache.get(convPhone);
       if (fresh) convLastItemsCount = fresh.length;
       startConvPolling();
+      loadBrief(phone);   // 📋 مسودة "طلب فرد" للمحادثة — مستقل تماماً عن الرد
     }
+
+    // ── 📋 طلب فرد (booking_brief) — تعبئة يدوية، منفصل تماماً عن منطق الرد ────
+    // لا استخراج تلقائي: الموظف يقرأ المحادثة ويعبّئ. الحفظ يكتب في booking_brief
+    // عبر endpoint جديد بالراوتر. لا يلمس إرسال/استقبال الرسائل إطلاقاً.
+    const BRIEF_CITIES = {
+      "فيتنام": ["هانوي","دانانغ","هوشي منه","فو كوك","سابا","هالونغ","نها ترانغ"],
+      "ماليزيا": ["كوالالمبور","لنكاوي","بينانغ","ملاكا","كوتا كينابالو"],
+      "تايلاند": ["بانكوك","بوكيت","شيانغ ماي","باتايا","كرابي","كو ساموي"],
+      "تركيا": ["اسطنبول","أنطاليا","طرابزون","بورصة","إزمير","أنقرة"],
+      "روسيا": ["موسكو","سان بطرسبرغ","سوتشي","قازان"],
+      "البوسنة": ["سراييفو","موستار","ترافنيك","بيهاتش"],
+      "إندونيسيا": ["بالي","جاكرتا","باندونغ","يوغياكرتا","لومبوك"],
+      "عُمان": ["مسقط","صلالة","صور","نزوى","خصب"],
+    };
+    function bfCurrency(phone) {
+      const d = String(phone || "").replace(/[^0-9]/g, "");
+      if (d.startsWith("968")) return "OMR";
+      if (d.startsWith("966")) return "SAR";
+      return "";
+    }
+    function bfFillCities(dest) {
+      const dl = $("bf-cities");
+      if (dl) dl.innerHTML = (BRIEF_CITIES[dest] || []).map(c => `<option value="${c}">`).join("");
+    }
+    function bfBadge(status) {
+      const el = $("bf-status-badge");
+      if (!el) return;
+      el.innerHTML = status === "complete"
+        ? '<span style="color:#15803d;">● مكتمل</span>'
+        : '<span style="color:#b45309;">● غير مكتمل</span>';
+    }
+    async function loadBrief(phone) {
+      const setv = (id, v) => { const el = $(id); if (el) el.value = (v == null ? "" : v); };
+      if ($("bf-phone")) $("bf-phone").textContent = fmtPhone(phone);
+      if ($("bf-handled_by")) $("bf-handled_by").textContent =
+        localStorage.getItem(USERNAME_KEY) || localStorage.getItem(ROLE_KEY) || "admin";
+      if ($("bf-currency")) $("bf-currency").value = bfCurrency(phone);
+      if ($("bf-status-badge")) $("bf-status-badge").textContent = "";
+      if ($("bf-msg")) $("bf-msg").textContent = "";
+      ["bf-destination","bf-date_from","bf-pax","bf-children","bf-days","bf-sim_count",
+       "bf-arrival_airport","bf-departure_airport","bf-hotel_stars","bf-notes"].forEach(id => setv(id, ""));
+      try {
+        const r = await fetch(BASE + "?admin_action=get_booking_brief", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({ contact_phone: phone }),
+        });
+        if (!r.ok) return;
+        const b = (await r.json()).brief;
+        if (!b || phone !== convPhone) return;   // تجاهل لو بدّل المستخدم المحادثة
+        setv("bf-destination", b.destination); bfFillCities(b.destination || "");
+        setv("bf-date_from", b.date_from); setv("bf-pax", b.pax); setv("bf-children", b.children);
+        setv("bf-days", b.days); setv("bf-sim_count", b.sim_count);
+        setv("bf-arrival_airport", b.arrival_airport); setv("bf-departure_airport", b.departure_airport);
+        setv("bf-hotel_stars", b.hotel_stars == null ? "" : String(b.hotel_stars));
+        setv("bf-notes", b.notes);
+        if (b.currency) $("bf-currency").value = b.currency;
+        bfBadge(b.status);
+      } catch (_) { /* صامت */ }
+    }
+    async function saveBrief() {
+      const val = id => ($(id) ? $(id).value.trim() : "");
+      const payload = {
+        contact_phone: convPhone,
+        destination: val("bf-destination"),
+        pax: val("bf-pax"), children: val("bf-children"), days: val("bf-days"),
+        date_from: val("bf-date_from"),
+        arrival_airport: val("bf-arrival_airport"), departure_airport: val("bf-departure_airport"),
+        sim_count: val("bf-sim_count"), hotel_stars: val("bf-hotel_stars"),
+        notes: val("bf-notes"), currency: val("bf-currency"),
+      };
+      const btn = $("bf-save"); const old = btn.textContent; btn.disabled = true; btn.textContent = "جاري الحفظ…";
+      const msg = $("bf-msg"); msg.style.color = "#64748b"; msg.textContent = "";
+      try {
+        const r = await fetch(BASE + "?admin_action=save_booking_brief", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+        msg.style.color = "#15803d";
+        msg.textContent = "✅ تم الحفظ (" + (d.status === "complete" ? "مكتمل" : "غير مكتمل") + ")";
+        bfBadge(d.status);
+      } catch (e) {
+        msg.style.color = "#dc2626"; msg.textContent = "خطأ: " + e.message;
+      } finally { btn.disabled = false; btn.textContent = old; }
+    }
+    if ($("brief-toggle")) $("brief-toggle").addEventListener("click", () => {
+      const f = $("brief-form"); const willOpen = f.style.display === "none";
+      f.style.display = willOpen ? "block" : "none";
+      $("brief-caret").textContent = willOpen ? "▴" : "▾";
+    });
+    if ($("bf-destination")) $("bf-destination").addEventListener("change", e => bfFillCities(e.target.value));
+    if ($("bf-save")) $("bf-save").addEventListener("click", saveBrief);
     async function loadConversationHistory() {
       if (!convPhone) return;
       const phone = convPhone;
@@ -3751,8 +3906,13 @@
       refresh();
     });
 
-    if (!token) showAuth();
-    else { refresh(); startAutoRefresh(); }
+    // دخول تلقائي بصلاحية الإدمن بدون لصق توكن (طلب صريح من المالك).
+    // ⚠️ هذا التوكن مضمّن داخل صفحة عامة على GitHub Pages — أي شخص معه
+    // رابط الداشبورد يحصل على وصول إدمن كامل. لإعادة تفعيل بوابة التوكن،
+    // احذف هذا السطر وأرجع إلى `if (!token) showAuth();`.
+    const DEFAULT_ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mb3R2YWNzemxtcnF4emZqbXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjI5NTYsImV4cCI6MjA5MzE5ODk1Nn0.1nQmxW63BFZSK-cn4fzh8tYM7a2JO10AQ0RGQ5bcdYo";
+    if (!token) setSession(DEFAULT_ADMIN_TOKEN, localStorage.getItem(ROLE_KEY) || "admin");
+    refresh(); startAutoRefresh();
   </script>
 </body>
 </html>
