@@ -2743,7 +2743,12 @@
       const rows = BF_SUGS.filter(s => bfPairOf(s) === pair && +s.days === days);
       if (!rows.length) {
         const avail = [...new Set(BF_SUGS.filter(s=>bfPairOf(s)===pair).map(s=>+s.days))].sort((a,b)=>a-b).join("، ");
-        return show("لا يوجد توزيع لـ " + days + " أيام لهذا المطار. الأيام المتاحة: <b>"+(avail||"—")+"</b>", true);
+        // أي مطارات أخرى عندها نفس عدد الأيام المطلوب؟ (نرشد الموظف بدل لا شيء)
+        const otherPairs = [...new Set(BF_SUGS.filter(s=>+s.days===days).map(s=>bfPairOf(s)))].filter(p=>p!==pair);
+        const otherTxt = otherPairs.length
+          ? ("<br>💡 برامج " + days + " أيام متاحة عبر: <b>" + otherPairs.map(bfPairLabel).join(" / ") + "</b> — غيّري المطار من المنسدلة.")
+          : "";
+        return show("لا يوجد توزيع لـ " + days + " أيام عبر هذا المطار. الأيام المتاحة لهذا المطار: <b>"+(avail||"—")+"</b>"+otherTxt, true);
       }
       hint.style.display = "none";
       list.innerHTML = rows.map((s,i)=>`
