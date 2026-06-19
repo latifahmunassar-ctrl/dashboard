@@ -2876,18 +2876,16 @@
         }
       }
     }
-    function mediaProxyUrl(msgSid, mediaSid) {
-      return BASE + "?admin_action=media_proxy" +
-        "&msg_sid=" + encodeURIComponent(msgSid) +
-        "&media_sid=" + encodeURIComponent(mediaSid) +
-        "&_t=" + encodeURIComponent(token);   // الـ token كـ param احتياط للـ <img>
+    function mediaProxyUrl(mediaId) {
+      // Cloud API: media_proxy يجلب الوسيط من Graph بمعرّفه. _t احتياط، والتحميل
+      // الفعلي عبر hydrateMediaElements بـ Bearer token (fetch+blob).
+      return BASE + "?admin_action=media_proxy&media_id=" + encodeURIComponent(mediaId) +
+        "&_t=" + encodeURIComponent(token);
     }
-    function renderMediaItem(msgSid, mm) {
-      // الـ <img> ما يقدر يبعث Authorization header، فنستخدم fetch+blob لتمرير الـ token.
-      // كحل مبسّط: نعرض رابط للملف. للصور نحاول inline.
-      const ct = (mm.content_type || "").toLowerCase();
-      const url = mediaProxyUrl(msgSid, mm.sid);
-      const id = "media_" + mm.sid;
+    function renderMediaItem(mediaId, mime, filename) {
+      const ct = (mime || "").toLowerCase();
+      const url = mediaProxyUrl(mediaId);
+      const id = "media_" + mediaId;
       if (ct.startsWith("image/")) {
         return `<div class="conv-media"><img id="${id}" data-media-url="${escapeHtml(url)}" data-clickable-image="1" alt="📷 صورة" title="اضغطي للتكبير" style="max-width:280px; max-height:280px; border-radius:8px; display:block; background:#f3f4f6; cursor:zoom-in;" /></div>`;
       }
@@ -2897,9 +2895,9 @@
       if (ct.startsWith("audio/")) {
         return `<div class="conv-media"><audio id="${id}" data-media-url="${escapeHtml(url)}" controls></audio></div>`;
       }
-      // PDF / Office / غيرها → رابط تحميل
       const label = ct === "application/pdf" ? "📄 ملف PDF" : "📎 ملف مرفق";
-      return `<div class="conv-media"><a id="${id}" data-media-url="${escapeHtml(url)}" download style="display:inline-block; padding:8px 12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">${label} <small style="opacity:0.7">(${escapeHtml(ct || "غير معروف")})</small></a></div>`;
+      const fn = filename ? (" — " + escapeHtml(filename)) : "";
+      return `<div class="conv-media"><a id="${id}" data-media-url="${escapeHtml(url)}" download style="display:inline-block; padding:8px 12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">${label}${fn}</a></div>`;
     }
     function hydrateMediaElements() {
       // نجلب كل media عبر fetch مع Authorization → blob URL → نلصقها.
@@ -2936,8 +2934,8 @@
         return;
       }
       body.innerHTML = items.map(m => {
-        const mediaHtml = Array.isArray(m.media) && m.media.length
-          ? `<div style="margin-top:4px; display:flex; flex-direction:column; gap:4px;">${m.media.map(mm => renderMediaItem(m.sid, mm)).join("")}</div>`
+        const mediaHtml = m.media_id
+          ? `<div style="margin-top:4px; display:flex; flex-direction:column; gap:4px;">${renderMediaItem(m.media_id, m.media_mime, m.media_filename)}</div>`
           : "";
         // إذا الرسالة فيها block مقتبس في أوله ("> ... \n\n"), افصله
         // عن النص الأصلي ليُعرض كصندوق رمادي صغير فوق المحتوى.
