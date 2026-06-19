@@ -1025,8 +1025,8 @@
             <span>رقم العميل: <b id="bf-phone">—</b></span>
             <span>الموظف: <b id="bf-handled_by">—</b></span>
           </div>
-          <button type="button" id="bf-save" style="margin-top:10px; width:100%; background:#0b5d4e; color:#fff; border:none; border-radius:8px; padding:10px; font-weight:700; cursor:pointer; position:sticky; bottom:0; box-shadow:0 -6px 12px #fbfdfc;">💾 حفظ الطلب</button>
-          <div id="bf-msg" style="margin-top:6px; font-size:12px; min-height:16px;"></div>
+          <div id="bf-msg" style="margin:6px 0; font-size:13px; font-weight:700; min-height:16px;"></div>
+          <button type="button" id="bf-save" style="margin-top:4px; width:100%; background:#0b5d4e; color:#fff; border:none; border-radius:8px; padding:10px; font-weight:700; cursor:pointer; position:sticky; bottom:0; box-shadow:0 -6px 12px #fbfdfc;">💾 حفظ الطلب</button>
         </div>
       </div>
       <div class="conv-footer">
@@ -2824,6 +2824,7 @@
       };
       const btn = $("bf-save"); const old = btn.textContent; btn.disabled = true; btn.textContent = "جاري الحفظ…";
       const msg = $("bf-msg"); msg.style.color = "#64748b"; msg.textContent = "";
+      let okSaved = false;
       try {
         const r = await fetch(BASE + "?admin_action=save_booking_brief", {
           method: "POST",
@@ -2832,6 +2833,7 @@
         });
         const d = await r.json();
         if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+        okSaved = true;
         msg.style.color = "#15803d";
         let extra = "";
         if (d.confirmation_sent) extra = " · 📨 أُرسلت رسالة تأكيد للعميل";
@@ -2840,7 +2842,11 @@
         bfBadge(d.status);
       } catch (e) {
         msg.style.color = "#dc2626"; msg.textContent = "خطأ: " + e.message;
-      } finally { btn.disabled = false; btn.textContent = old; }
+      } finally {
+        btn.disabled = false;
+        if (okSaved) { btn.textContent = "✅ تم الحفظ"; setTimeout(() => { btn.textContent = old; }, 3000); }
+        else { btn.textContent = old; }
+      }
     }
     if ($("brief-toggle")) $("brief-toggle").addEventListener("click", () => {
       const f = $("brief-form"); const willOpen = f.style.display === "none";
