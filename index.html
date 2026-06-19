@@ -2724,7 +2724,7 @@
       } catch (_) { BF_SUGS = []; }
       const pairs = [...new Set(BF_SUGS.map(bfPairOf))].filter(p => p !== "|");
       if (aSel) aSel.innerHTML = pairs.length
-        ? '<option value="ALL">🌐 كل المطارات (كل الاقتراحات)</option>' + pairs.map(p => `<option value="${p}">${bfPairLabel(p)}</option>`).join("")
+        ? '<option value="">— اختر مطار القدوم/المغادرة —</option>' + pairs.map(p => `<option value="${p}">${bfPairLabel(p)}</option>`).join("")
         : '<option value="">لا مطارات جاهزة لهذه الوجهة</option>';
     }
     function bfRenderSugs(){
@@ -2737,20 +2737,20 @@
       const show = (t, html) => { hint.style.display = ""; if (html) hint.innerHTML = t; else hint.textContent = t; };
       if (!dest) return show("اختر الوجهة أولاً.");
       if (!BF_SUGS.length) return show("لا توجد اقتراحات جاهزة لهذه الوجهة.");
-      const all = !pair || pair === "ALL";
-      let rows = all ? BF_SUGS.slice() : BF_SUGS.filter(s => bfPairOf(s) === pair);
-      if (days) { const dm = rows.filter(s => +s.days === days); if (dm.length) rows = dm; }
-      if (!rows.length) return show("لا توجد اقتراحات مطابقة.");
-      rows.sort((a,b)=>(+a.days)-(+b.days));
+      if (!pair || pair === "ALL") return show("اختر مطار القدوم والمغادرة.");
+      if (!days) return show("اكتب عدد الأيام المطلوبة.");
+      // المطابق فقط: نفس المطار + نفس عدد الأيام (قد يكون أكثر من توزيع).
+      const rows = BF_SUGS.filter(s => bfPairOf(s) === pair && +s.days === days);
+      if (!rows.length) {
+        const avail = [...new Set(BF_SUGS.filter(s=>bfPairOf(s)===pair).map(s=>+s.days))].sort((a,b)=>a-b).join("، ");
+        return show("لا يوجد توزيع لـ " + days + " أيام لهذا المطار. الأيام المتاحة: <b>"+(avail||"—")+"</b>", true);
+      }
       hint.style.display = "none";
-      list.innerHTML = rows.map((s,i)=>{
-        const [a,b] = bfPairOf(s).split("|");
-        const route = a===b ? bfAirAr(a) : (bfAirAr(a)+" → "+bfAirAr(b));
-        return `<div class="bf-sugcard" data-i="${i}" style="border:1px solid #d7dee6; border-radius:8px; padding:7px 9px; cursor:pointer; background:${s.distribution===bfChosenDist?'#eaf5f1':'#fff'};">
-          <div style="font-size:11px; color:#0b5d4e; font-weight:700;">${s.days} أيام${all?(' · ✈️ '+route):''}</div>
+      list.innerHTML = rows.map((s,i)=>`
+        <div class="bf-sugcard" data-i="${i}" style="border:1px solid #d7dee6; border-radius:8px; padding:7px 9px; cursor:pointer; background:${s.distribution===bfChosenDist?'#eaf5f1':'#fff'};">
+          <div style="font-size:11px; color:#0b5d4e; font-weight:700;">${s.days} أيام</div>
           <div style="font-size:13px;">${s.distribution||""}</div>
-        </div>`;
-      }).join("");
+        </div>`).join("");
       [...list.querySelectorAll(".bf-sugcard")].forEach(el => el.onclick = () => {
         list.querySelectorAll(".bf-sugcard").forEach(x => x.style.background = "#fff");
         el.style.background = "#eaf5f1";
